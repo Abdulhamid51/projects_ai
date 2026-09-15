@@ -1,0 +1,101 @@
+id,name,category,price,stock,brand,rating,sku
+1,Sparkling Water,Vegetables,3.28,80,DailyDeli,4.1,FG-0001
+2,Rice,Vegetables,23.48,149,GreenFarm,4.5,FG-0002
+3,Orange,Fruits,5.4,69,FarmVale,4.5,FG-0003
+4,Sardines,Bakery,24.7,149,NorthPeak,4.1,FG-0004
+5,Orange Juice,Meat,27.59,11,PrimeSelect,4.8,FG-0005
+6,Crackers,Beverages,13.05,49,DailyDeli,4.9,FG-0006
+7,Baguette,Vegetables,5.38,34,RiverGold,4.8,FG-0007
+8,Apple Juice,Meat,27.52,127,FarmVale,3.9,FG-0008
+9,Frozen Spinach,Beverages,4.94,85,BrightField,4.6,FG-0009
+10,Coconut Milk,Seafood,20.4,27,FreshNest,4.6,FG-0010
+11,Pasta,Meat,33.04,69,BrightField,3.9,FG-0011
+12,Butter,Snacks,22.21,103,SunHarvest,4.2,FG-0012
+13,Pepper,Frozen,10.78,28,NatureBox,4.6,FG-0013
+14,Cod Fish,Bakery,7.57,107,PureJoy,5.0,FG-0014
+15,Sparkling Water,Grains,9.31,93,BrightField,4.7,FG-0015
+16,Grape,Bakery,27.98,90,NorthPeak,4.1,FG-0016
+17,Pepper,Canned Goods,29.67,90,DailyDeli,4.6,FG-0017
+18,Rolls,Frozen,16.72,77,SunHarvest,4.1,FG-0018
+19,Sardines,Grains,10.64,119,GoldenVale,4.5,FG-0019
+20,Bagel,Bakery,33.42,45,FarmVale,4.4,FG-0020
+21,Oats,Fruits,29.19,49,EverFresh,4.0,FG-0021
+22,Cookies,Beverages,20.99,108,NorthPeak,4.5,FG-0022
+23,Pork Fillet,Grains,10.29,12,EverFresh,4.7,FG-0023
+24,Cookies,Grains,25.78,97,GreenFarm,4.2,FG-0024
+25,Potato,Snacks,2.6,77,FarmVale,4.7,FG-0025
+26,Tuna Can,Vegetables,29.49,86,BrightField,4.6,FG-0026
+27,Apple Juice,Bakery,7.24,51,FarmVale,4.9,FG-0027
+28,Frozen Spinach,Grains,30.97,92,GoldenCrust,3.8,FG-0028
+29,Frozen Spinach,Seafood,29.74,88,DailyDeli,3.9,FG-0029
+30,Coconut Milk,Canned Goods,31.86,31,HomeTable,4.4,FG-0030
+31,Strawberry,Grains,26.24,42,EverFresh,4.4,FG-0031
+32,Sardines,Dairy,10.72,118,DailyDeli,4.9,FG-0032
+33,Oats,Bakery,24.6,112,EverFresh,4.6,FG-0033
+34,Turkey Sausage,Grains,16.5,73,DailyDeli,3.9,FG-0034
+35,Banana,Canned Goods,19.67,66,FreshNest,3.9,FG-0035
+36,Sparkling Water,Fruits,9.6,18,BrightField,4.2,FG-0036
+37,Tuna Can,Bakery,11.13,134,DailyDeli,4.4,FG-0037
+38,Trail Mix,Canned Goods,20.36,72,PrimeSelect,4.4,FG-0038
+39,Chicken Breast,Bakery,5.42,120,RiverGold,4.3,FG-0039
+40,Pork Fillet,Fruits,23.37,35,FreshNest,4.3,FG-0040
+41,Baguette,Vegetables,10.21,58,FarmVale,4.3,FG-0041
+42,Beef Mince,Dairy,11.13,73,BrightField,4.9,FG-0042
+43,Turkey Sausage,Grains,5.54,148,BrightField,3.8,FG-0043
+44,Mango,Bakery,7.66,134,GoldenCrust,4.1,FG-0044
+45,Rolls,Fruits,7.6,10,NorthPeak,4.1,FG-0045
+46,Flour,Snacks,11.34,134,SunHarvest,4.0,FG-0046
+47,Pepper,Fruits,20.45,148,FreshNest,4.7,FG-0047
+48,Grape,Fruits,20.61,138,GoldenVale,4.8,FG-0048
+49,Potato,Fruits,32.28,30,BrightField,4.0,FG-0049
+50,Apple Juice,Vegetables,23.43,70,NorthPeak,3.9,FG-0050
+51,Coconut Milk,Canned Goods,10.13,20,NatureBox,3.9,FG-0051
+52,Peanuts,Canned Goods,20.02,90,GoldenVale,4.1,FG-0052
+53,Peanuts,Seafood,9.9,111,SunHarvest,4.6,FG-0053
+54,Cottage Cheese,Snacks,12.3,28,FreshNest,4.3,FG-0054
+55,Water,Vegetables,4.77,64,FarmVale,4.1,FG-0055
+56,Frozen Spinach,Seafood,29.81,72,RiverGold,4.1,FG-0056
+57,Turkey Sausage,Grains,24.31,145,FreshNest,4.6,FG-0057
+58,Sardines,Meat,31.38,36,GoldenVale,4.0,FG-0058
+59,Carrot,Vegetables,25.51,49,PureJoy,4.1,FG-0059
+60,Pepper,Seafood,8.81,77,FarmVale,4.4,FG-0060
+61,Olives,Fruits,5.36,118,BrightField,4.1,FG-0061
+62,Apple,Seafood,26.4,77,SunHarvest,4.7,FG-0062
+63,Sardines,Beverages,19.89,38,GreenFarm,4.9,FG-0063
+64,Crackers,Dairy,19.41,104,NatureBox,4.5,FG-0064
+65,Beef Mince,Dairy,3.8,103,GoldenVale,4.9,FG-0065
+66,Frozen Fries,Fruits,30.37,63,EverFresh,4.1,FG-0066
+67,Pineapple,Seafood,26.68,114,NatureBox,4.7,FG-0067
+68,Frozen Spinach,Bakery,29.3,55,GoldenVale,4.3,FG-0068
+69,Onion,Seafood,26.75,115,PrimeSelect,4.6,FG-0069
+70,Rice,Bakery,10.77,37,NorthPeak,4.8,FG-0070
+71,Tomato Paste,Snacks,9.4,127,RiverGold,4.2,FG-0071
+72,Flour,Bakery,9.41,59,NorthPeak,4.2,FG-0072
+73,Canned Peaches,Vegetables,32.47,81,RiverGold,4.6,FG-0073
+74,Rolls,Frozen,32.92,147,RiverGold,4.9,FG-0074
+75,Carrot,Meat,8.04,77,FreshNest,3.9,FG-0075
+76,Beef Mince,Seafood,25.08,90,NorthPeak,4.5,FG-0076
+77,Tuna Can,Vegetables,14.44,58,PureJoy,3.9,FG-0077
+78,Beef Mince,Fruits,18.62,147,EverFresh,4.7,FG-0078
+79,Rice,Frozen,8.61,120,GreenFarm,4.9,FG-0079
+80,Frozen Peas,Seafood,21.82,41,HomeTable,4.9,FG-0080
+81,Tuna Can,Meat,23.17,93,NorthPeak,4.6,FG-0081
+82,Sardines,Dairy,8.45,107,EverFresh,4.7,FG-0082
+83,Onion,Canned Goods,20.14,113,FarmVale,4.8,FG-0083
+84,Cottage Cheese,Meat,9.02,92,GoldenCrust,4.3,FG-0084
+85,Cookies,Bakery,18.35,53,EverFresh,3.9,FG-0085
+86,Tuna Can,Frozen,22.12,95,GreenFarm,4.8,FG-0086
+87,Oats,Bakery,23.36,67,PrimeSelect,4.0,FG-0087
+88,Banana,Fruits,10.09,131,NatureBox,4.8,FG-0088
+89,Strawberry,Snacks,15.35,59,HomeTable,4.6,FG-0089
+90,Salmon Fillet,Beverages,10.06,11,GoldenVale,4.7,FG-0090
+91,Pasta,Vegetables,26.63,66,SunHarvest,4.8,FG-0091
+92,Crackers,Grains,16.9,73,GoldenVale,4.8,FG-0092
+93,Pork Fillet,Dairy,27.34,145,FarmVale,4.5,FG-0093
+94,Frozen Berries,Snacks,21.49,139,NorthPeak,4.8,FG-0094
+95,Sardines,Snacks,30.31,131,GoldenCrust,4.1,FG-0095
+96,Yogurt,Frozen,11.1,143,GoldenCrust,4.6,FG-0096
+97,Butter,Snacks,4.9,83,DailyDeli,4.1,FG-0097
+98,Bread,Grains,5.0,48,DailyDeli,4.3,FG-0098
+99,Cucumber,Bakery,4.49,114,RiverGold,4.5,FG-0099
+100,Chicken Breast,Fruits,8.91,117,NorthPeak,4.9,FG-0100
