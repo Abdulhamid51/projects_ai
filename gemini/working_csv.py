@@ -12,7 +12,7 @@ client = genai.Client()
 MODEL = "gemini-3.6-flash"      # ro'yxatdan aniqlagan nomingizni qo'ying
 TAQIQ = ['import', 'open(', 'exec', 'eval', '__', 'os.', 'sys.', 'subprocess']
 CFG = types.GenerateContentConfig(
-    temperature=0,
+    temperature=0, # 0 - deterministik, bir xil kirishga bir xil chiqish; 1 — tasodifiylik yuqori; Kod va ma'lumot ajratishda 0, ijodiy matnda 0.7+.
     automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True)
 )
 
