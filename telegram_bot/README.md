@@ -11,7 +11,7 @@ cp .env.example .env   # qiymatlarni to'ldiring
 python main.py
 ```
 1. `API_ID`/`API_HASH` — https://my.telegram.org → *API development tools*.
-2. `GEMINI_API_KEY` — https://aistudio.google.com/apikey
+2. `GEMINI_API_KEY` va `GEMINI_MODEL` — boshqa loyihalaringiz kabi repo ildizidagi `projects_ai/.env` dan olinadi (alohida yozish shart emas).
 3. Birinchi ishga tushirishda telefon raqam, SMS kod (va 2FA parol) so'raladi.
    Keyin `userbot_session.session` fayli yaratiladi — **uni hech kimga bermang**.
 

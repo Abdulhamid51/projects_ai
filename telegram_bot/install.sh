@@ -20,14 +20,20 @@ if [ ! -f .env ]; then
   echo "==> .env sozlamalari"
   read -rp "API_ID (my.telegram.org): " API_ID
   read -rp "API_HASH: " API_HASH
-  read -rp "GEMINI_API_KEY: " GEMINI_API_KEY
   read -rp "O'zingiz haqingizda qisqa ma'lumot: " OWNER_INFO
   sed -e "s|^API_ID=.*|API_ID=$API_ID|" \
       -e "s|^API_HASH=.*|API_HASH=$API_HASH|" \
-      -e "s|^GEMINI_API_KEY=.*|GEMINI_API_KEY=$GEMINI_API_KEY|" \
       -e "s|^OWNER_INFO=.*|OWNER_INFO=$OWNER_INFO|" \
       .env.example > .env
   chmod 600 .env
+fi
+
+# GEMINI_API_KEY boshqa loyihalar bilan umumiy ../.env da turadi
+if ! grep -qs '^GEMINI_API_KEY=.' ../.env .env; then
+  echo "==> ../.env da GEMINI_API_KEY topilmadi"
+  read -rp "GEMINI_API_KEY: " GEMINI_API_KEY
+  printf 'GEMINI_API_KEY=%s\nGEMINI_MODEL=gemini-2.5-flash\n' "$GEMINI_API_KEY" >> ../.env
+  chmod 600 ../.env
 fi
 
 if [ ! -f userbot_session.session ]; then

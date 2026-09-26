@@ -11,13 +11,16 @@ import os
 import sys
 import time
 from collections import defaultdict, deque
+from pathlib import Path
 
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 from telethon import TelegramClient, events
 
-load_dotenv()
+BASE = Path(__file__).resolve().parent
+load_dotenv(BASE / ".env")
+load_dotenv(BASE.parent / ".env")  # GEMINI_API_KEY boshqa loyihalardagi umumiy .env dan
 
 API_ID = int(os.environ["API_ID"])
 API_HASH = os.environ["API_HASH"]
