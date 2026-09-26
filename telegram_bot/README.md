@@ -31,3 +31,20 @@ python main.py
 
 > ⚠️ Userbotlar Telegram qoidalarida "kulrang zona"da. Juda ko'p/spam xabar yubormang,
 > aks holda akkaunt cheklanishi mumkin.
+
+## Serverga o'rnatish (VPS, 24/7)
+Ubuntu/Debian serverda:
+```bash
+git clone https://github.com/Abdulhamid51/projects_ai.git
+cd projects_ai/telegram_bot
+bash install.sh
+```
+Skript kutubxonalarni o'rnatadi, `.env` qiymatlarini va Telegram kodini so'raydi,
+so'ng botni `tg-userbot` nomli systemd servis qilib ishga tushiradi (server qayta yoqilsa ham ishlaydi).
+
+| Buyruq | Vazifa |
+|---|---|
+| `sudo systemctl status tg-userbot` | holat |
+| `sudo journalctl -u tg-userbot -f` | loglar |
+| `sudo systemctl restart tg-userbot` | qayta ishga tushirish (`.env` o'zgarganda) |
+| `git pull && sudo systemctl restart tg-userbot` | yangilash |

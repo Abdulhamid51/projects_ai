@@ -8,6 +8,7 @@ Boshqaruv ("Saved Messages" ga yozing):
 """
 import asyncio
 import os
+import sys
 import time
 from collections import defaultdict, deque
 
@@ -123,6 +124,10 @@ async def on_incoming(event):
 
 def main():
     client.start()  # birinchi marta telefon raqam va kod so'raydi
+    if "--login" in sys.argv:  # faqat sessiya yaratish (install.sh uchun)
+        print("Login muvaffaqiyatli, sessiya saqlandi.")
+        client.disconnect()
+        return
     print("Userbot ishga tushdi. Boshqaruv: Saved Messages ga .on/.off/.status/.clear")
     client.run_until_disconnected()
 
