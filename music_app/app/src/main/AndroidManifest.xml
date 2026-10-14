@@ -10,7 +10,7 @@
     <application
         android:name=".App"
         android:label="Musiqa"
-        android:icon="@android:drawable/ic_media_play"
+        android:icon="@drawable/ic_launcher"
         android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
