@@ -14,6 +14,8 @@ module.exports = function ({ rooms, mac, same }) {
   const webBtn = (text, p) => ({ text, web_app: { url: PUBLIC + p } });
   const secret = () => mac('wh').slice(0, 32);
   const groupSig = id => mac('grp' + id).slice(0, 20);
+  const fmt = r => { const d = new Date(r.at + (r.tz || 0) * 60000), p = n => String(n).padStart(2, '0'), z = (r.tz || 0) / 60;
+    return `${p(d.getUTCDate())}.${p(d.getUTCMonth() + 1)} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())} (UTC${z >= 0 ? '+' : '-'}${Math.abs(z)})`; };
   const yn = v => (v ? 'ha' : "yo'q");
   const rules = c => [
     `🃏 Boshlang'ich kartalar: ${c.hand}`,
@@ -42,7 +44,7 @@ module.exports = function ({ rooms, mac, same }) {
     const host = r.players[0].name, l = link(r.code);
     api('sendMessage', {
       chat_id: hostTgId, parse_mode: 'HTML', disable_web_page_preview: true,
-      text: `🎴 <b>UNO xonasi yaratildi!</b>\n\n🔑 Kod: <code>${r.code}</code>\n👑 Ega: ${esc(host)}\n\n${rules(r.cfg)}\n\n🔗 ${l}\n\nHavolani do'stlaringizga yuboring. Qoidalarni o'yin boshlanishidan oldin xona ichida o'zgartirishingiz mumkin.`,
+      text: `${r.at ? '🗓 <b>Rejalashtirilgan UNO xonasi yaratildi!</b>' : '🎴 <b>UNO xonasi yaratildi!</b>'}\n\n🔑 Kod: <code>${r.code}</code>\n👑 Ega: ${esc(host)}\n${r.at ? `🕒 Boshlanish: <b>${fmt(r)}</b>\n` : ''}\n${rules(r.cfg)}\n\n🔗 ${l}\n\nHavolani do'stlaringizga yuboring. Qoidalarni o'yin boshlanishidan oldin xona ichida o'zgartirishingiz mumkin.`,
       reply_markup: { inline_keyboard: [
         [webBtn('▶ Xonaga kirish', '/?room=' + r.code)],
         [{ text: "📨 Do'stlarga yuborish", url: `https://t.me/share/url?url=${encodeURIComponent(l)}&text=${encodeURIComponent('UNO o‘ynaymiz! 🎴')}` }],
@@ -50,9 +52,26 @@ module.exports = function ({ rooms, mac, same }) {
     });
     if (group) api('sendMessage', {
       chat_id: group, parse_mode: 'HTML',
-      text: `🎴 <b>${esc(host)}</b> UNO xonasi ochdi!\n🔑 Kod: <code>${r.code}</code>\n\nQo'shilish: tugmani bosing → botda <b>Start</b> bosing → «Tayyor» tugmasi keladi.`,
-      reply_markup: { inline_keyboard: [[{ text: '🤖 Botga start bosish', url: l }]] },
-    });
+      text: r.at
+        ? `🗓 <b>${esc(host)}</b> UNO o'yinini rejalashtirdi!\n🔑 Kod: <code>${r.code}</code>\n🕒 Vaqt: <b>${fmt(r)}</b>\n\nOldindan qo'shilib qo'yish: tugmani bosing → botda <b>Start</b> bosing → «Qo'shilib qo'yish» tugmasi keladi. Vaqti kelganda shu yerga xabar beraman.`
+        : `🎴 <b>${esc(host)}</b> UNO xonasi ochdi!\n🔑 Kod: <code>${r.code}</code>\n\nQo'shilish: tugmani bosing → botda <b>Start</b> bosing → «Tayyor» tugmasi keladi.`,
+      reply_markup: { inline_keyboard: [[{ text: r.at ? "📅 Qo'shilib qo'yish" : '🤖 Botga start bosish', url: l }]] },
+    }).then(res => { if (res && res.ok && res.result) r.gmsg = res.result.message_id; });
+  }
+
+  // jadval vaqti kelganda: guruhga + qo'shilgan Telegram o'yinchilariga
+  function notifyStart(r) {
+    if (!TOKEN || !bot.name) return;
+    const body = `⏰ <b>O'yin vaqti keldi!</b>\n\n🎴 UNO xonasi <code>${r.code}</code>\n👥 ${r.players.map(p => esc(p.name)).join(', ')}`;
+    if (r.group) api('sendMessage', { chat_id: r.group, parse_mode: 'HTML', text: body + "\n\nQo'shilish uchun tugmani bosing 👇",
+      reply_markup: { inline_keyboard: [[{ text: '▶ Xonaga kirish', url: link(r.code) }]] } });
+    r.players.filter(p => p.id.startsWith('tg:')).forEach(p => api('sendMessage', { chat_id: p.id.slice(3), parse_mode: 'HTML', text: body,
+      reply_markup: { inline_keyboard: [[webBtn('▶ Xonaga kirish', '/?room=' + r.code)]] } }));
+  }
+
+  // xona o'chirilganda guruhdagi xabarni yangilaydi
+  function closeRoom(r) {
+    if (TOKEN && r.group && r.gmsg) api('editMessageText', { chat_id: r.group, message_id: r.gmsg, text: `🗑 UNO xonasi ${r.code} o'chirildi.` });
   }
 
   async function onUpdate(u) {
@@ -67,7 +86,7 @@ module.exports = function ({ rooms, mac, same }) {
       const code = arg.slice(2).toUpperCase(), r = rooms.get(code);
       if (!r) return reply('😕 Xona topilmadi yoki yopilgan.');
       if (r.state === 'play') return reply(`🎴 <b>${code}</b> xonasida o'yin allaqachon boshlangan.`);
-      return reply(`🎴 <b>UNO xonasi ${code}</b>\n👥 ${r.players.map(p => esc(p.name)).join(', ')}\n\n${rules(r.cfg)}\n\nTayyor bo'lsangiz tugmani bosing 👇`, [[webBtn('✅ Tayyor — xonaga kirish', '/?room=' + code)]]);
+      return reply(`🎴 <b>UNO xonasi ${code}</b>\n${r.at ? `🕒 Boshlanish: <b>${fmt(r)}</b>\n` : ''}👥 ${r.players.map(p => esc(p.name)).join(', ')}\n\n${rules(r.cfg)}\n\n${r.at ? "Oldindan qo'shilib qo'yishingiz mumkin 👇" : "Tayyor bo'lsangiz tugmani bosing 👇"}`, [[webBtn(r.at ? "📅 Qo'shilib qo'yish" : '✅ Tayyor — xonaga kirish', '/?room=' + code)]]);
     }
     if (cmd === '/start' && /^g\d+$|^gn\d+$/.test(arg)) {
       const id = arg.slice(1).replace('n', '-');
@@ -104,5 +123,5 @@ module.exports = function ({ rooms, mac, same }) {
     } else { await api('deleteWebhook', {}); console.log('Telegram bot @' + bot.name + ' (polling)'); poll(); }
   }
 
-  return Object.assign(bot, { verifyInit, notifyRoom, onUpdate, start, groupSig, secret });
+  return Object.assign(bot, { verifyInit, notifyRoom, notifyStart, closeRoom, onUpdate, start, groupSig, secret });
 };

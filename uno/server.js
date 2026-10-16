@@ -91,7 +91,46 @@ function settle(r) {
   for (let i = 0; i < r.players.length && !r.players[r.turn].ws; i++) r.turn = nextIdx(r);
 }
 
+const persist = r => {
+  db.sched = db.sched || {};
+  if (r.at && r.state === 'lobby') db.sched[r.code] = { code: r.code, host: r.host, at: r.at, tz: r.tz, group: r.group, gmsg: r.gmsg, cfg: r.cfg, notified: r.notified, players: r.players.map(p => ({ id: p.id, name: p.name })) };
+  else if (db.sched[r.code]) delete db.sched[r.code];
+  else return;
+  save();
+};
+function dropRoom(r) { clearTimeout(r.tm); clearTimeout(r.st); rooms.delete(r.code); r.state = 'gone'; persist(r); }
+function deleteRoom(r, by) {
+  r.players.forEach(q => { if (q.ws) { send(q.ws, { t: 'deleted', code: r.code }); q.ws.room = q.ws.player = null; } });
+  if (by && !r.players.some(q => q.ws === by)) send(by, { t: 'deleted', code: r.code });
+  tgBot.closeRoom(r); dropRoom(r);
+}
+function scheduleRoom(r) {
+  clearTimeout(r.st);
+  if (!r.at || r.notified) return;
+  r.st = setTimeout(() => fireSchedule(r), Math.min(Math.max(0, r.at - Date.now()), 2 ** 31 - 1));
+}
+function fireSchedule(r) {
+  if (rooms.get(r.code) !== r || r.state !== 'lobby' || r.notified) return;
+  if (r.at - Date.now() > 1000) return scheduleRoom(r);
+  r.notified = true;
+  tgBot.notifyStart(r);
+  r.players.forEach(p => send(p.ws, { t: 'toast', msg: "⏰ O'yin vaqti keldi!" }));
+  sync(r);
+}
+const mySched = id => [...rooms.values()].filter(r => r.at && r.state === 'lobby' && r.players.some(p => p.id === id))
+  .map(r => ({ code: r.code, at: r.at, n: r.players.length, host: r.players.find(p => p.id === r.host).name, mine: r.host === id }))
+  .sort((a, b) => a.at - b.at);
+function restore() {
+  for (const d of Object.values(db.sched || {})) {
+    if (rooms.has(d.code)) continue;
+    if (d.at + 6 * 3600e3 < Date.now()) { delete db.sched[d.code]; continue; }
+    const r = { ...d, players: d.players.map(p => ({ ...p, hand: [], ws: null })), state: 'lobby', deck: [], discard: [], turn: 0, dir: 1, log: [], evs: [], seen: Date.now() };
+    rooms.set(r.code, r); scheduleRoom(r);
+  }
+}
+
 function startGame(r) {
+  clearTimeout(r.st);
   r.deck = makeDeck(); r.discard = []; r.dir = 1; r.drawn = null; r.winner = null; r.log = [];
   r.pen = null; r.players.forEach(p => (p.hand = draw(r, r.cfg.hand)));
   let c;
@@ -158,7 +197,7 @@ function view(r, p) {
     turn: r.state === 'play' ? cur.id : null, dir: r.dir, color: r.color, top: r.discard[r.discard.length - 1], deck: r.deck.length,
     hand: p.hand.map(c => ({ ...c, ok: mine && ok(r, c, p) && (!r.drawn || r.drawn === c.id) })),
     drawn: mine ? r.drawn : null, log: r.log, ev: r.evs,
-    cfg: r.cfg, pen: r.pen, left: r.deadline ? Math.max(0, Math.ceil((r.deadline - Date.now()) / 1000)) : 0,
+    cfg: r.cfg, at: r.at, pen: r.pen, left: r.deadline ? Math.max(0, Math.ceil((r.deadline - Date.now()) / 1000)) : 0,
   };
 }
 const send = (ws, m) => ws && ws.readyState === 1 && ws.send(JSON.stringify(m));
@@ -169,6 +208,7 @@ const sync = r => {
     if (r.state === 'play' && r.cfg.timer) { r.deadline = Date.now() + r.cfg.timer * 1000; r.tm = setTimeout(() => onTimeout(r), r.cfg.timer * 1000); }
   }
   r.players.forEach(p => send(p.ws, view(r, p))); r.evs = [];
+  persist(r);
 };
 
 function genCode() { let c; do c = Array.from({ length: 4 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ'[Math.random() * 24 | 0]).join(''); while (rooms.has(c)); return c; }
@@ -178,19 +218,30 @@ function handle(ws, m) {
   if (m.t === 'auth') {
     const k = verify(m.token), u = k && db.users[k];
     if (!u) return send(ws, { t: 'err', msg: 'Qaytadan kiring', auth: true });
-    ws.user = k; ws.uname = u.name; return send(ws, { t: 'authed', bot: tgBot.name });
+    ws.user = k; ws.uname = u.name; send(ws, { t: 'authed', bot: tgBot.name }); return send(ws, { t: 'sched', list: mySched(k) });
   }
   if (!ws.user) return;
+  if (m.t === 'mine') return send(ws, { t: 'sched', list: mySched(ws.user) });
+  if (m.t === 'detach') return leave(ws, false);
+  if (m.t === 'delete') {
+    const dr = rooms.get(String(m.code || '').toUpperCase()) || ws.room;
+    if (!dr || dr.host !== ws.user || dr.state === 'play') return send(ws, { t: 'err', msg: "Xonani o'chirib bo'lmaydi" });
+    return deleteRoom(dr, ws);
+  }
   let r = ws.room, p = ws.player;
-  if ((m.t === 'create' || m.t === 'join') && ws.room) { leave(ws, true); r = p = null; }
+  if ((m.t === 'create' || m.t === 'join') && ws.room) { leave(ws, !(ws.room.at && ws.room.state === 'lobby')); r = p = null; }
   if (m.t === 'create') {
+    let at = 0;
+    if (m.at) { at = +m.at; if (!(at > Date.now() + 5000 && at < Date.now() + 14 * 864e5)) return send(ws, { t: 'err', msg: "Vaqt noto'g'ri (14 kungacha)" }); }
     p = newPlayer(ws);
     r = { code: genCode(), players: [p], host: p.id, state: 'lobby', deck: [], discard: [], turn: 0, dir: 1, log: [], evs: [], cfg: { ...DEF }, seen: Date.now() };
     rooms.set(r.code, r);
+    r.at = at; r.tz = Math.max(-720, Math.min(840, +m.tz || 0)); r.notified = false;
     if (ws.user.startsWith('tg:')) {
-      const g = m.group && m.sig === tgBot.groupSig(String(m.group)) ? String(m.group) : null;
-      tgBot.notifyRoom(r, ws.user.slice(3), g);
+      r.group = m.group && m.sig === tgBot.groupSig(String(m.group)) ? String(m.group) : null;
+      tgBot.notifyRoom(r, ws.user.slice(3), r.group);
     }
+    scheduleRoom(r);
   } else if (m.t === 'join' || m.t === 'rejoin') {
     r = rooms.get(String(m.code || '').toUpperCase());
     if (!r) return send(ws, { t: 'err', msg: 'Xona topilmadi', fatal: m.t === 'rejoin' });
@@ -224,13 +275,14 @@ function leave(ws, hard) {
   const { room: r, player: p } = ws;
   if (!r || !p) return;
   if (p.ws === ws) p.ws = null;
-  if (hard || r.state === 'lobby') {
+  if (hard || (r.state === 'lobby' && !r.at)) {
     r.players = r.players.filter(q => q !== p);
     if (r.host === p.id && r.players[0]) r.host = r.players[0].id;
     if (r.state === 'play' && r.players.length < 2) r.state = 'over', r.winner = r.players[0] && r.players[0].name;
     r.turn %= Math.max(r.players.length, 1);
   }
   ws.room = ws.player = null;
+  if (!r.players.length) return dropRoom(r);
   settle(r); sync(r);
 }
 
@@ -257,8 +309,9 @@ wss.on('connection', ws => {
 });
 setInterval(() => {
   wss.clients.forEach(ws => { if (!ws.alive) return ws.terminate(); ws.alive = false; ws.ping(); });
-  for (const [c, r] of rooms) if (Date.now() - r.seen > 3600e3 && r.players.every(p => !p.ws)) { clearTimeout(r.tm); rooms.delete(c); }
+  for (const [c, r] of rooms) if (Date.now() - r.seen > 3600e3 && r.players.every(p => !p.ws) && !(r.at && r.state === 'lobby' && Date.now() < r.at + 6 * 3600e3)) dropRoom(r);
 }, 30000);
 
+restore();
 if (require.main === module) server.listen(PORT, () => { console.log('UNO http://localhost:' + PORT); tgBot.start(); });
-module.exports = { server, tgBot };
+module.exports = { server, tgBot, rooms, restore };

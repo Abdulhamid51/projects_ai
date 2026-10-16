@@ -26,3 +26,12 @@ Oqim:
 - Xona egasi boshlanishidan oldin qoidalarni belgilaydi: boshlang'ich kartalar (5/7/10), yurish vaqti, +2/+4 to'plash, mos karta chiqquncha olish, +4 qat'iy qoidasi.
 
 Testlar: `npm test` (o'yin), `node test-tg.js` (Telegram, tarmoqsiz).
+
+## Rejalashtirilgan xonalar
+- Bosh sahifada vaqt tanlab «🗓 Rejalashtirish» — xona oldindan yaratiladi. Do'stlar havola/bot orqali **oldindan qo'shilib qo'yadi**,
+  «Orqaga» bilan chiqib ketsa ham xonada qoladi; «Rejalashtirilgan xonalarim» ro'yxatidan qayta kiradi.
+- Guruh orqali ochilsa guruhga vaqt, kod va tugma yuboriladi; vaqt kelganda guruhga va qo'shilgan Telegram o'yinchilariga «⏰ O'yin vaqti keldi» xabari boradi.
+- Xona egasi (lobbida yoki o'yin tugagach) xonani butunlay o'chiradi; guruhdagi xabar «o'chirildi» deb yangilanadi.
+- Jadvalli xonalar `DATA_FILE` ga saqlanadi va server qayta ishga tushganda tiklanadi.
+  **Render Free'da** server 15 daqiqa harakatsiz qolsa uxlaydi va fayl tizimi tozalanadi — jadval xabari kechikishi/yo'qolishi mumkin.
+  Ishonchli ishlashi uchun: uptime ping (masalan UptimeRobot → `/health`, 5 daqiqada) + pullik Disk (`DATA_FILE=/var/data/users.json`).

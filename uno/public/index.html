@@ -19,6 +19,9 @@ button:disabled{opacity:.4}button.sec{background:#5d4037}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:center}
 .code{font-size:44px;font-weight:800;letter-spacing:8px;text-align:center;color:var(--yellow)}
 .hide{display:none!important}
+.pl.off{opacity:.45}
+.rm{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 4px;border-bottom:1px solid #ffffff1f;font-size:14px}
+.sch{background:#0005;border-radius:12px;padding:10px;margin-top:10px}
 .cf{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid #ffffff1f;font-size:14px}
 .cf select{padding:6px 8px;border-radius:8px;border:0;font:inherit;background:#fff;color:#222}
 .cf input[type=checkbox]{width:24px;height:24px;margin:0;flex:none;accent-color:var(--yellow)}
@@ -111,14 +114,22 @@ button:disabled{opacity:.4}button.sec{background:#5d4037}
 
 <div id="home" class="box hide">
   <div class="row" style="justify-content:space-between;margin-bottom:6px"><span>👤 <b id="me"></b></span><button class="sec" id="logout" style="padding:6px 12px">Chiqish</button></div>
-  <button id="create" style="width:100%;margin:6px 0">🎮 Yangi xona yaratish</button>
+  <div id="grpnote" class="hide" style="text-align:center;font-size:13px;opacity:.85;margin-bottom:6px">👥 Xona ma'lumotlari guruhga yuboriladi</div>
+  <button id="create" style="width:100%;margin:6px 0">🎮 Hozir o'ynash (yangi xona)</button>
+  <div class="sch">
+    <div style="font-weight:700;margin-bottom:4px">🗓 Rejalashtirilgan o'yin</div>
+    <input id="when" type="datetime-local">
+    <button id="sched" class="sec" style="width:100%;margin-top:6px">🗓 Rejalashtirish</button>
+  </div>
+  <div id="mine" class="sch hide"><div style="font-weight:700;margin-bottom:4px">📅 Rejalashtirilgan xonalarim</div><div id="minelist"></div></div>
   <div class="row" style="margin-top:10px"><input id="codeIn" placeholder="Xona kodi" maxlength="4" style="flex:1;width:auto;text-transform:uppercase"><button id="join">Qo'shilish</button></div>
 </div>
 
 <div id="lobby" class="box hide">
   <div style="text-align:center">Xona kodi</div><div class="code" id="code"></div>
   <div class="row" style="margin:10px 0"><button class="sec" id="copy">📨 Do'stlarga yuborish</button></div>
-  <div class="row" id="lplayers"></div>
+  <div id="lsched" class="hide sch" style="text-align:center"></div>
+  <div class="row" id="lplayers" style="margin-top:10px"></div>
   <div id="cfg" style="margin-top:14px">
     <div style="text-align:center;font-weight:700;margin-bottom:4px">⚙️ Xona sozlamalari</div>
     <label class="cf">🃏 Boshlang'ich kartalar <select id="c_hand"><option>5</option><option>7</option><option>10</option></select></label>
@@ -128,7 +139,7 @@ button:disabled{opacity:.4}button.sec{background:#5d4037}
     <label class="cf">🎯 +4 faqat mos rang bo'lmaganda <input type="checkbox" id="c_strict"></label>
     <p id="c_note" style="text-align:center;opacity:.7;font-size:13px;margin:6px 0 0"></p>
   </div>
-  <div class="row" style="margin-top:14px"><button id="start">▶ Boshlash</button><button class="sec" id="leave1">Chiqish</button></div>
+  <div class="row" style="margin-top:14px"><button id="start">▶ Boshlash</button><button class="sec" id="leave1">Chiqish</button><button class="sec hide" id="quit1">🚪 Xonadan chiqish</button><button class="sec hide" id="del1">🗑 O'chirish</button></div>
   <p id="lwait" style="text-align:center;opacity:.7"></p>
 </div>
 </div>
@@ -146,7 +157,7 @@ button:disabled{opacity:.4}button.sec{background:#5d4037}
   <div id="status"></div>
   <button id="pass" class="hide">O'tkazish ⏭</button>
   <div id="hand"></div>
-  <div id="over"><div class="panel"><div class="trophy">🏆</div><h2 id="win"></h2><div class="row"><button id="again">Qayta o'ynash</button><button class="sec" id="leave3">Chiqish</button></div><p id="owait" class="hide" style="opacity:.7;margin:8px 0 0">Xona egasi qayta boshlashini kuting...</p></div></div>
+  <div id="over"><div class="panel"><div class="trophy">🏆</div><h2 id="win"></h2><div class="row"><button id="again">Qayta o'ynash</button><button class="sec" id="leave3">Chiqish</button><button class="sec hide" id="del3">🗑 Xonani o'chirish</button></div><p id="owait" class="hide" style="opacity:.7;margin:8px 0 0">Xona egasi qayta boshlashini kuting...</p></div></div>
 </div>
 
 <script>
@@ -157,10 +168,11 @@ const FX={skip:'⊘ SKIP',rev:'⇄ REVERSE','+2':'+2','+4':'+4'};
 const sym=v=>/^\d$/.test(v)?v:SYM[v], rnd=(a,b)=>a+Math.random()*(b-a);
 let ws,S,prevS=null,pend=null,pileId=null,lobSig='',sess=JSON.parse(store.uno||'null'),acct=JSON.parse(store.unoAcct||'null');
 const handEls=new Map(),url=new URL(location);
-let bot='',dl=0;
+let bot='',dl=0,mineList=[];
+const grp=new URL(location).searchParams.get('group')?{group:new URL(location).searchParams.get('group'),sig:new URL(location).searchParams.get('sig')}:{};
 const tw=window.Telegram&&Telegram.WebApp;let inTG=!!(tw&&tw.initData);
 const q=k=>url.searchParams.get(k);
-let auto=q('room')?{t:'join',code:q('room').toUpperCase()}:q('group')?{t:'create',group:q('group'),sig:q('sig')}:null;
+let auto=q('room')?{t:'join',code:q('room').toUpperCase()}:null;
 if(inTG){tw.ready();tw.expand();try{tw.setHeaderColor('#1a0f09');tw.setBackgroundColor('#1a0f09')}catch(e){}acct=null;delete store.unoAcct}
 if(url.searchParams.get('room'))$('codeIn').value=url.searchParams.get('room');
 
@@ -171,8 +183,11 @@ function connect(){
   w.onopen=()=>send({t:'auth',token:acct.token});
   w.onmessage=e=>{const m=JSON.parse(e.data);
     if(m.t==='authed'){bot=m.bot||'';
-      if(auto&&!(auto.t==='create'&&sess))send(auto);else if(sess)send({t:'rejoin',code:sess.code});auto=null}
+      if(auto)send(auto);else if(sess)send({t:'rejoin',code:sess.code});auto=null}
     else if(m.t==='joined'){sess={code:m.code};store.uno=JSON.stringify(sess);history.replaceState(0,'','?room='+m.code)}
+    else if(m.t==='sched'){mineList=m.list;renderMine();$('mine').classList.toggle('hide',!mineList.length)}
+    else if(m.t==='toast')toast(m.msg)
+    else if(m.t==='deleted'){if(sess&&sess.code===m.code){delete store.uno;sess=null;S=null;history.replaceState(0,'','/')}toast("Xona o'chirildi");send({t:'mine'});if(!S)render()}
     else if(m.t==='kicked'){w.onclose=null;S=null;render();toast('Boshqa oynada ochildi')}
     else if(m.t==='err'){toast(m.msg);if(m.auth)logout();else if(m.fatal){delete store.uno;sess=null;S=null;render()}}
     else if(m.t==='state'){S=m;render()}};
@@ -196,12 +211,26 @@ function logout(){
   history.replaceState(0,'','/');render();
 }
 $('login').onclick=()=>auth('login');$('reg').onclick=()=>auth('register');$('logout').onclick=logout;
-$('create').onclick=()=>send({t:'create'});
+$('create').onclick=()=>send({t:'create',...grp});
+const fmtLocal=at=>new Date(at).toLocaleString([],{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+const pad=n=>String(n).padStart(2,'0');
+(()=>{const d=new Date(Date.now()+3600e3);$('when').value=`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:00`})();
+$('sched').onclick=()=>{const v=$('when').value,at=new Date(v).getTime();
+  if(!v||!(at>Date.now()+30000))return toast("Kelajakdagi vaqtni tanlang");
+  send({t:'create',at,tz:-new Date().getTimezoneOffset(),...grp})};
+const ask=(msg,cb)=>inTG&&tw.showConfirm?tw.showConfirm(msg,ok=>ok&&cb()):confirm(msg)&&cb();
+function renderMine(){
+  $('minelist').innerHTML=mineList.map(x=>`<div class="rm"><div><b>${x.code}</b> · ${fmtLocal(x.at)}<br><small>${x.n} o'yinchi · ega: ${x.host}</small></div><div class="row"><button data-j="${x.code}" style="padding:8px 12px">Kirish</button>${x.mine?`<button class="sec" data-d="${x.code}" style="padding:8px 12px">🗑</button>`:''}</div></div>`).join('');
+}
+$('minelist').onclick=e=>{const j=e.target.dataset.j,d=e.target.dataset.d;
+  if(j)send({t:'join',code:j});else if(d)ask("Bu xonani butunlay o'chirasizmi?",()=>send({t:'delete',code:d}))};
 $('join').onclick=()=>send({t:'join',code:$('codeIn').value.trim().toUpperCase()});
 $('start').onclick=()=>send({t:'start'});$('again').onclick=()=>send({t:'start'});
 $('deck').onclick=()=>send({t:'draw'});$('pass').onclick=()=>send({t:'pass'});
-const leave=()=>{send({t:'leave'});delete store.uno;sess=null;S=null;history.replaceState(0,'','/');render()};
-$('leave1').onclick=$('leave2').onclick=$('leave3').onclick=leave;
+const out=t=>{send({t});delete store.uno;sess=null;S=null;history.replaceState(0,'','/');render();send({t:'mine'})};
+const leave=()=>out('leave'),back=()=>out(S&&S.at&&S.state==='lobby'?'detach':'leave');
+const del=()=>ask("Xonani butunlay o'chirasizmi? Qaytarib bo'lmaydi.",()=>send({t:'delete',code:S.code}));
+$('leave1').onclick=back;$('leave2').onclick=$('leave3').onclick=$('quit1').onclick=leave;$('del1').onclick=$('del3').onclick=del;
 $('copy').onclick=()=>{
   const u=bot?`https://t.me/${bot}?start=r_${S.code}`:location.origin+'/?room='+S.code;
   if(inTG)tw.openTelegramLink('https://t.me/share/url?url='+encodeURIComponent(u)+'&text='+encodeURIComponent('UNO o‘ynaymiz! 🎴 Kod: '+S.code));
@@ -331,11 +360,16 @@ function game(){
   $('deck').classList.toggle('hint',mine&&!S.drawn&&!S.hand.some(c=>c.ok));
   $('pass').classList.toggle('hide',!S.drawn);
   const over=S.state==='over';
-  if(over){$('win').textContent=S.winner+' yutdi!';$('again').classList.toggle('hide',S.host!==S.you);$('owait').classList.toggle('hide',S.host===S.you);if(!prevS||prevS.state!=='over')confetti()}
+  if(over){$('win').textContent=S.winner+' yutdi!';$('again').classList.toggle('hide',S.host!==S.you);$('del3').classList.toggle('hide',S.host!==S.you);$('owait').classList.toggle('hide',S.host===S.you);if(!prevS||prevS.state!=='over')confetti()}
   $('over').classList.toggle('show',over);
 }
+const cdText=at=>{let d=Math.floor((at-Date.now())/1000);if(d<=0)return 'Vaqt keldi! 🎉';const k=Math.floor(d/86400);d%=86400;return `Qoldi: ${k?k+'k ':''}${pad(Math.floor(d/3600))}:${pad(Math.floor(d%3600/60))}:${pad(d%60)}`};
 function lobby(){
   $('code').textContent=S.code;cfgUI();
+  $('lsched').classList.toggle('hide',!S.at);
+  if(S.at)$('lsched').innerHTML=`🗓 Boshlanish: <b>${fmtLocal(S.at)}</b><br><span id="cd">${cdText(S.at)}</span>`;
+  $('quit1').classList.toggle('hide',!S.at);$('del1').classList.toggle('hide',S.host!==S.you);
+  $('leave1').textContent=S.at?'⬅ Orqaga':'Chiqish';
   const sig=S.players.map(p=>p.id+p.on).join();
   if(sig!==lobSig){lobSig=sig;$('lplayers').innerHTML=S.players.map(p=>`<div class="pl ${p.on?'':'off'}">${p.name}${p.id===S.host?' 👑':''}</div>`).join('')}
   const h=S.host===S.you;$('start').classList.toggle('hide',!h);$('start').disabled=S.players.length<2;
@@ -347,13 +381,15 @@ function render(){
   $('auth').classList.toggle('hide',st!=='home'||!!acct||inTG);
   $('logout').classList.toggle('hide',inTG);
   $('home').classList.toggle('hide',st!=='home'||!acct);
+  $('mine').classList.toggle('hide',!mineList.length);
+  $('grpnote').classList.toggle('hide',!grp.group);
   $('lobby').classList.toggle('hide',st!=='lobby');
   $('game').classList.toggle('hide',!inGame);
   document.querySelector('h1').classList.toggle('hide',inGame);
   if(!inGame){resetGame();if(st==='lobby')lobby();else lobSig='';prevS=S;return}
   game();prevS=S;
 }
-setInterval(()=>{const e=$('tleft');if(e&&dl)e.textContent=Math.max(0,Math.ceil((dl-Date.now())/1000))},300);
+setInterval(()=>{const e=$('tleft');if(e&&dl)e.textContent=Math.max(0,Math.ceil((dl-Date.now())/1000));const c=$('cd');if(c&&S&&S.at)c.textContent=cdText(S.at)},300);
 if(inTG)tgLogin();else if(acct){$('me').textContent=acct.name;connect()}
 render();
 </script></body></html>
