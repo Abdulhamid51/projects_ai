@@ -4,7 +4,8 @@
 <title>UNO Online</title>
 <style>
 :root{--red:#d32f2f;--yellow:#fbc02d;--green:#2e9d4a;--blue:#1976d2;--hu:clamp(11px,2.7vw,17px);--pu:calc(var(--hu)*1.35);--room:radial-gradient(ellipse at 50% 20%,#4a3224,#1a0f09 75%)}
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+input{-webkit-user-select:text;user-select:text}
 body{margin:0;font-family:system-ui,sans-serif;color:#fff;min-height:100vh;overflow-x:hidden;background:var(--room) fixed}
 .wrap{max-width:640px;margin:0 auto;padding:16px}
 h1{text-align:center;font-size:56px;margin:20px 0;letter-spacing:6px;color:var(--yellow);text-shadow:3px 3px var(--red),6px 6px #0006}
@@ -132,7 +133,7 @@ button:disabled{opacity:.4}button.sec{background:#5d4037}
   <div id="status"></div>
   <button id="pass" class="hide">O'tkazish ⏭</button>
   <div id="hand"></div>
-  <div id="over"><div class="panel"><div class="trophy">🏆</div><h2 id="win"></h2><button id="again">Qayta o'ynash</button></div></div>
+  <div id="over"><div class="panel"><div class="trophy">🏆</div><h2 id="win"></h2><div class="row"><button id="again">Qayta o'ynash</button><button class="sec" id="leave3">Chiqish</button></div><p id="owait" class="hide" style="opacity:.7;margin:8px 0 0">Xona egasi qayta boshlashini kuting...</p></div></div>
 </div>
 
 <script>
@@ -175,7 +176,7 @@ $('join').onclick=()=>send({t:'join',code:$('codeIn').value.trim().toUpperCase()
 $('start').onclick=()=>send({t:'start'});$('again').onclick=()=>send({t:'start'});
 $('deck').onclick=()=>send({t:'draw'});$('pass').onclick=()=>send({t:'pass'});
 const leave=()=>{send({t:'leave'});delete store.uno;sess=null;S=null;history.replaceState(0,'','/');render()};
-$('leave1').onclick=$('leave2').onclick=leave;
+$('leave1').onclick=$('leave2').onclick=$('leave3').onclick=leave;
 $('copy').onclick=()=>{const u=location.origin+'/?room='+S.code;navigator.clipboard?navigator.clipboard.writeText(u).then(()=>toast('Nusxalandi!')):prompt('Havola:',u)};
 $('colors').innerHTML=Object.keys(HEX).map(c=>`<button data-c="${c}" style="background:${HEX[c]}"></button>`).join('');
 $('colors').onclick=e=>{const c=e.target.dataset.c;if(c&&pend){send({t:'play',card:pend,color:c});pend=null;$('modal').style.display='none'}};
@@ -294,7 +295,7 @@ function game(){
   $('deck').classList.toggle('hint',mine&&!S.drawn&&!S.hand.some(c=>c.ok));
   $('pass').classList.toggle('hide',!S.drawn);
   const over=S.state==='over';
-  if(over){$('win').textContent=S.winner+' yutdi!';$('again').classList.toggle('hide',S.host!==S.you);if(!prevS||prevS.state!=='over')confetti()}
+  if(over){$('win').textContent=S.winner+' yutdi!';$('again').classList.toggle('hide',S.host!==S.you);$('owait').classList.toggle('hide',S.host===S.you);if(!prevS||prevS.state!=='over')confetti()}
   $('over').classList.toggle('show',over);
 }
 function lobby(){
