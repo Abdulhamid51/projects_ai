@@ -6,7 +6,22 @@ const crypto = require('crypto');
 const DATA = process.env.DATA_FILE || path.join(__dirname, 'data', 'users.json');
 let db = { secret: crypto.randomBytes(32).toString('hex'), users: {} };
 try { db = JSON.parse(fs.readFileSync(DATA)); } catch (e) {}
-const save = () => { fs.mkdirSync(path.dirname(DATA), { recursive: true }); fs.writeFileSync(DATA, JSON.stringify(db)); };
+// Tashqi baza (Upstash Redis REST). Sozlansa fayl o'rniga shu ishlatiladi.
+const R_URL = process.env.UPSTASH_REDIS_REST_URL, R_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN, R_KEY = process.env.REDIS_KEY || 'uno:db';
+const redis = cmd => fetch(R_URL, { method: 'POST', headers: { authorization: 'Bearer ' + R_TOKEN, 'content-type': 'application/json' }, body: JSON.stringify(cmd) }).then(r => r.json());
+let rt;
+const flush = () => { clearTimeout(rt); return redis(['SET', R_KEY, JSON.stringify(db)]).then(r => r.error && console.error('Redis:', r.error)).catch(e => console.error('Redis:', e.message)); };
+async function loadRemote() {
+  if (!R_URL) return;
+  const r = await redis(['GET', R_KEY]);
+  if (r.error) throw new Error('Redis: ' + r.error);
+  if (r.result) db = JSON.parse(r.result); else await redis(['SET', R_KEY, JSON.stringify(db)]);
+  console.log('Redis ulandi. Foydalanuvchilar:', Object.keys(db.users).length);
+}
+const save = () => {
+  if (R_URL) { clearTimeout(rt); rt = setTimeout(flush, 300); return; }
+  fs.mkdirSync(path.dirname(DATA), { recursive: true }); fs.writeFileSync(DATA, JSON.stringify(db));
+};
 const mac = b => crypto.createHmac('sha256', db.secret).update(b).digest('hex');
 const same = (a, b) => a.length === b.length && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
 const sign = k => { const b = k + '.' + (Date.now() + 30 * 864e5); return b + '.' + mac(b); };
@@ -312,6 +327,11 @@ setInterval(() => {
   for (const [c, r] of rooms) if (Date.now() - r.seen > 3600e3 && r.players.every(p => !p.ws) && !(r.at && r.state === 'lobby' && Date.now() < r.at + 6 * 3600e3)) dropRoom(r);
 }, 30000);
 
-restore();
-if (require.main === module) server.listen(PORT, () => { console.log('UNO http://localhost:' + PORT); tgBot.start(); });
-module.exports = { server, tgBot, rooms, restore };
+async function boot() {
+  await loadRemote(); // baza o'qilmasa ishga tushmaymiz (bo'sh baza bilan ustidan yozib yubormaslik uchun)
+  restore();
+  server.listen(PORT, () => { console.log('UNO http://localhost:' + PORT); tgBot.start(); });
+  process.on('SIGTERM', async () => { if (R_URL) await flush(); process.exit(0); });
+}
+if (require.main === module) boot().catch(e => { console.error(e.message); process.exit(1); }); else restore();
+module.exports = { server, tgBot, rooms, restore, _test: { loadRemote, flush, reset: () => { db = { secret: 'test', users: {} }; } } };

@@ -35,3 +35,11 @@ Testlar: `npm test` (o'yin), `node test-tg.js` (Telegram, tarmoqsiz).
 - Jadvalli xonalar `DATA_FILE` ga saqlanadi va server qayta ishga tushganda tiklanadi.
   **Render Free'da** server 15 daqiqa harakatsiz qolsa uxlaydi va fayl tizimi tozalanadi — jadval xabari kechikishi/yo'qolishi mumkin.
   Ishonchli ishlashi uchun: uptime ping (masalan UptimeRobot → `/health`, 5 daqiqada) + pullik Disk (`DATA_FILE=/var/data/users.json`).
+
+## Tashqi baza (Upstash Redis, bepul)
+Render Free'da fayl tizimi doimiy emas, shuning uchun akkauntlar va jadvalli xonalar tashqi bazada saqlanadi.
+1. upstash.com → Create Database (Redis, region — sizga yaqin) → **REST API** bo'limidan `UPSTASH_REDIS_REST_URL` va `UPSTASH_REDIS_REST_TOKEN` ni oling.
+2. Render → Environment ga ikkalasini kiriting → xizmat qayta ishga tushadi, logda `Redis ulandi. Foydalanuvchilar: N` chiqadi.
+- Sozlanmasa fayl (`DATA_FILE`) ishlatiladi. Baza ulanmasa server ataylab ishga tushmaydi (bo'sh baza bilan ma'lumotni ustidan yozib yubormaslik uchun).
+- Barcha ma'lumot bitta kalitda (`uno:db`) JSON ko'rinishida: do'stlar/guruh miqyosi (minglab akkaunt) uchun yetarli.
+- Eslatma: o'yin davomidagi xonalar xotirada turadi — server qayta ishga tushsa o'yin tugaydi, lekin akkaunt va rejalashtirilgan xonalar saqlanadi.
