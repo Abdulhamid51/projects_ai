@@ -80,7 +80,7 @@ function startGame(r) {
   let c;
   while ((c = r.deck.pop()) && !/^\d$/.test(c.v)) r.deck.unshift(c);
   r.discard.push(c); r.color = c.c;
-  r.turn = Math.random() * r.players.length | 0; r.state = 'play';
+  r.turn = Math.random() * r.players.length | 0; r.state = 'play'; r.evs = [{ t: 'deal' }];
   settle(r);
   log(r, "O'yin boshlandi!");
 }
@@ -94,14 +94,15 @@ function play(r, p, cid, color) {
   if (!card.c && !COLORS.includes(color)) return 'Rang tanlang';
   p.hand = p.hand.filter(c => c !== card);
   r.discard.push(card); r.color = card.c || color; r.drawn = null;
+  r.evs.push({ t: 'play', by: p.id, card });
   if (!p.hand.length) { r.state = 'over'; r.winner = p.name; log(r, `${p.name} yutdi! 🎉`); return; }
   let step = 1;
   const victim = r.players[nextIdx(r)];
   if (card.v === 'rev') { if (r.players.length === 2) step = 2; else r.dir *= -1; }
   else if (card.v === 'skip') step = 2;
-  else if (card.v === '+2' || card.v === '+4') { const n = card.v === '+2' ? 2 : 4; victim.hand.push(...draw(r, n)); step = 2; log(r, `${victim.name} ${n} ta karta oldi`); }
+  else if (card.v === '+2' || card.v === '+4') { const n = card.v === '+2' ? 2 : 4; victim.hand.push(...draw(r, n)); step = 2; r.evs.push({ t: 'draw', by: victim.id, n }); log(r, `${victim.name} ${n} ta karta oldi`); }
   log(r, `${p.name}: ${card.v}${card.c ? '' : ' → ' + r.color}`);
-  if (p.hand.length === 1) log(r, `${p.name}: UNO! 🔥`);
+  if (p.hand.length === 1) { log(r, `${p.name}: UNO! 🔥`); r.evs.push({ t: 'uno', by: p.id, name: p.name }); }
   r.turn = nextIdx(r, step);
   settle(r);
 }
@@ -114,11 +115,11 @@ function view(r, p) {
     players: r.players.map(q => ({ id: q.id, name: q.name, n: q.hand.length, on: !!q.ws })),
     turn: r.state === 'play' ? cur.id : null, dir: r.dir, color: r.color, top: r.discard[r.discard.length - 1], deck: r.deck.length,
     hand: p.hand.map(c => ({ ...c, ok: mine && ok(r, c) && (!r.drawn || r.drawn === c.id) })),
-    drawn: mine ? r.drawn : null, log: r.log,
+    drawn: mine ? r.drawn : null, log: r.log, ev: r.evs,
   };
 }
 const send = (ws, m) => ws && ws.readyState === 1 && ws.send(JSON.stringify(m));
-const sync = r => r.players.forEach(p => send(p.ws, view(r, p)));
+const sync = r => { r.players.forEach(p => send(p.ws, view(r, p))); r.evs = []; };
 
 function genCode() { let c; do c = Array.from({ length: 4 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ'[Math.random() * 24 | 0]).join(''); while (rooms.has(c)); return c; }
 const newPlayer = ws => ({ id: ws.user, name: ws.uname, hand: [], ws });
@@ -134,7 +135,7 @@ function handle(ws, m) {
   if ((m.t === 'create' || m.t === 'join') && ws.room) { leave(ws, true); r = p = null; }
   if (m.t === 'create') {
     p = newPlayer(ws);
-    r = { code: genCode(), players: [p], host: p.id, state: 'lobby', deck: [], discard: [], turn: 0, dir: 1, log: [], seen: Date.now() };
+    r = { code: genCode(), players: [p], host: p.id, state: 'lobby', deck: [], discard: [], turn: 0, dir: 1, log: [], evs: [], seen: Date.now() };
     rooms.set(r.code, r);
   } else if (m.t === 'join' || m.t === 'rejoin') {
     r = rooms.get(String(m.code || '').toUpperCase());
@@ -155,7 +156,7 @@ function handle(ws, m) {
   else if (m.t === 'draw') {
     if (r.state !== 'play' || r.players[r.turn] !== p || r.drawn) return;
     const [c] = draw(r, 1);
-    if (c) { p.hand.push(c); log(r, `${p.name} karta oldi`); if (ok(r, c)) r.drawn = c.id; }
+    if (c) { p.hand.push(c); r.evs.push({ t: 'draw', by: p.id, n: 1 }); log(r, `${p.name} karta oldi`); if (ok(r, c)) r.drawn = c.id; }
     if (!r.drawn) { r.turn = nextIdx(r); settle(r); }
   } else if (m.t === 'pass') {
     if (r.state !== 'play' || r.players[r.turn] !== p || !r.drawn) return;
