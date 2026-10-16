@@ -2,6 +2,7 @@
 <html lang="uz"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>UNO Online</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
 :root{--red:#d32f2f;--yellow:#fbc02d;--green:#2e9d4a;--blue:#1976d2;--hu:clamp(11px,2.7vw,17px);--pu:calc(var(--hu)*1.35);--room:radial-gradient(ellipse at 50% 20%,#4a3224,#1a0f09 75%)}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
@@ -18,6 +19,9 @@ button:disabled{opacity:.4}button.sec{background:#5d4037}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:center}
 .code{font-size:44px;font-weight:800;letter-spacing:8px;text-align:center;color:var(--yellow)}
 .hide{display:none!important}
+.cf{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid #ffffff1f;font-size:14px}
+.cf select{padding:6px 8px;border-radius:8px;border:0;font:inherit;background:#fff;color:#222}
+.cf input[type=checkbox]{width:24px;height:24px;margin:0;flex:none;accent-color:var(--yellow)}
 .pl{padding:6px 12px;border-radius:20px;background:#0005;border:2px solid transparent;animation:pop .35s both}
 #toast{position:fixed;top:12px;left:50%;transform:translateX(-50%);background:#c62828;padding:10px 18px;border-radius:10px;display:none;z-index:99}
 #modal{position:fixed;inset:0;background:#000b;display:none;align-items:center;justify-content:center;z-index:30}
@@ -113,8 +117,17 @@ button:disabled{opacity:.4}button.sec{background:#5d4037}
 
 <div id="lobby" class="box hide">
   <div style="text-align:center">Xona kodi</div><div class="code" id="code"></div>
-  <div class="row" style="margin:10px 0"><button class="sec" id="copy">🔗 Havolani nusxalash</button></div>
+  <div class="row" style="margin:10px 0"><button class="sec" id="copy">📨 Do'stlarga yuborish</button></div>
   <div class="row" id="lplayers"></div>
+  <div id="cfg" style="margin-top:14px">
+    <div style="text-align:center;font-weight:700;margin-bottom:4px">⚙️ Xona sozlamalari</div>
+    <label class="cf">🃏 Boshlang'ich kartalar <select id="c_hand"><option>5</option><option>7</option><option>10</option></select></label>
+    <label class="cf">⏱ Yurish vaqti <select id="c_timer"><option value="0">Cheksiz</option><option value="15">15 s</option><option value="30">30 s</option><option value="60">60 s</option></select></label>
+    <label class="cf">➕ +2 / +4 ustiga qo'yib to'plash <input type="checkbox" id="c_stack"></label>
+    <label class="cf">📥 Mos karta chiqquncha olish <input type="checkbox" id="c_until"></label>
+    <label class="cf">🎯 +4 faqat mos rang bo'lmaganda <input type="checkbox" id="c_strict"></label>
+    <p id="c_note" style="text-align:center;opacity:.7;font-size:13px;margin:6px 0 0"></p>
+  </div>
   <div class="row" style="margin-top:14px"><button id="start">▶ Boshlash</button><button class="sec" id="leave1">Chiqish</button></div>
   <p id="lwait" style="text-align:center;opacity:.7"></p>
 </div>
@@ -144,6 +157,11 @@ const FX={skip:'⊘ SKIP',rev:'⇄ REVERSE','+2':'+2','+4':'+4'};
 const sym=v=>/^\d$/.test(v)?v:SYM[v], rnd=(a,b)=>a+Math.random()*(b-a);
 let ws,S,prevS=null,pend=null,pileId=null,lobSig='',sess=JSON.parse(store.uno||'null'),acct=JSON.parse(store.unoAcct||'null');
 const handEls=new Map(),url=new URL(location);
+let bot='',dl=0;
+const tw=window.Telegram&&Telegram.WebApp;let inTG=!!(tw&&tw.initData);
+const q=k=>url.searchParams.get(k);
+let auto=q('room')?{t:'join',code:q('room').toUpperCase()}:q('group')?{t:'create',group:q('group'),sig:q('sig')}:null;
+if(inTG){tw.ready();tw.expand();try{tw.setHeaderColor('#1a0f09');tw.setBackgroundColor('#1a0f09')}catch(e){}acct=null;delete store.unoAcct}
 if(url.searchParams.get('room'))$('codeIn').value=url.searchParams.get('room');
 
 function toast(m){const t=$('toast');t.textContent=m;t.style.display='block';clearTimeout(t._t);t._t=setTimeout(()=>t.style.display='none',2200)}
@@ -152,12 +170,19 @@ function connect(){
   const w=ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws');
   w.onopen=()=>send({t:'auth',token:acct.token});
   w.onmessage=e=>{const m=JSON.parse(e.data);
-    if(m.t==='authed'){if(sess)send({t:'rejoin',code:sess.code})}
+    if(m.t==='authed'){bot=m.bot||'';
+      if(auto&&!(auto.t==='create'&&sess))send(auto);else if(sess)send({t:'rejoin',code:sess.code});auto=null}
     else if(m.t==='joined'){sess={code:m.code};store.uno=JSON.stringify(sess);history.replaceState(0,'','?room='+m.code)}
     else if(m.t==='kicked'){w.onclose=null;S=null;render();toast('Boshqa oynada ochildi')}
     else if(m.t==='err'){toast(m.msg);if(m.auth)logout();else if(m.fatal){delete store.uno;sess=null;S=null;render()}}
     else if(m.t==='state'){S=m;render()}};
   w.onclose=()=>{if(acct&&ws===w)setTimeout(connect,1500)};
+}
+async function tgLogin(){
+  const r=await fetch('/api/tg',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({initData:tw.initData})});
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok){inTG=false;render();return toast(d.err||'Telegram orqali kirib bo\'lmadi')}
+  acct=d;$('me').textContent=d.name;render();connect();
 }
 async function auth(kind){
   const r=await fetch('/api/'+kind,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({username:$('user').value.trim(),password:$('pw').value})});
@@ -177,7 +202,15 @@ $('start').onclick=()=>send({t:'start'});$('again').onclick=()=>send({t:'start'}
 $('deck').onclick=()=>send({t:'draw'});$('pass').onclick=()=>send({t:'pass'});
 const leave=()=>{send({t:'leave'});delete store.uno;sess=null;S=null;history.replaceState(0,'','/');render()};
 $('leave1').onclick=$('leave2').onclick=$('leave3').onclick=leave;
-$('copy').onclick=()=>{const u=location.origin+'/?room='+S.code;navigator.clipboard?navigator.clipboard.writeText(u).then(()=>toast('Nusxalandi!')):prompt('Havola:',u)};
+$('copy').onclick=()=>{
+  const u=bot?`https://t.me/${bot}?start=r_${S.code}`:location.origin+'/?room='+S.code;
+  if(inTG)tw.openTelegramLink('https://t.me/share/url?url='+encodeURIComponent(u)+'&text='+encodeURIComponent('UNO o‘ynaymiz! 🎴 Kod: '+S.code));
+  else navigator.clipboard?navigator.clipboard.writeText(u).then(()=>toast('Nusxalandi!')):prompt('Havola:',u)};
+const CF=['hand','timer','stack','until','strict'];
+const cfgSend=()=>send({t:'settings',s:{hand:$('c_hand').value,timer:$('c_timer').value,stack:$('c_stack').checked,until:$('c_until').checked,strict:$('c_strict').checked}});
+CF.forEach(k=>$('c_'+k).onchange=cfgSend);
+function cfgUI(){const h=S.host===S.you;CF.forEach(k=>{const el=$('c_'+k);el.disabled=!h;if(el.type==='checkbox')el.checked=!!S.cfg[k];else el.value=S.cfg[k]});
+  $('c_note').textContent=h?"Qoidalarni o'yin boshlanishidan oldin shu yerda belgilang":"Sozlamalarni faqat xona egasi o'zgartiradi"}
 $('colors').innerHTML=Object.keys(HEX).map(c=>`<button data-c="${c}" style="background:${HEX[c]}"></button>`).join('');
 $('colors').onclick=e=>{const c=e.target.dataset.c;if(c&&pend){send({t:'play',card:pend,color:c});pend=null;$('modal').style.display='none'}};
 $('modal').onclick=e=>{if(e.target.id==='modal'){pend=null;$('modal').style.display='none'}};
@@ -203,7 +236,7 @@ function fly(node,from,to,{dur=450,delay=0,r0=0,r1=0,s0,s1,done}={}){
   node.animate([{transform:T(from,r0,s0??from.width/w)},{transform:T(to,r1,s1??to.width/w)}],
     {duration:dur,delay,easing:'cubic-bezier(.25,.8,.25,1)',fill:'both'}).onfinish=()=>{node.remove();done&&done()};
 }
-const seatRect=id=>(document.querySelector('#seat-'+id+' .av')||$('deck')).getBoundingClientRect();
+const seatRect=id=>{const s=document.getElementById('seat-'+id);return((s&&s.querySelector('.av'))||$('deck')).getBoundingClientRect()};
 
 function landPile(c,rot=rnd(-12,12),anim=true){
   pileId=c.id;const el=cardNode(c);el.style.setProperty('--r',rot+'deg');if(anim)el.classList.add('land');
@@ -257,7 +290,7 @@ function seats(){
     let h=0;for(const ch of p.name)h=(h*31+ch.charCodeAt(0))%360;
     const m=Math.min(p.n,10),mini=Array.from({length:m},(_,j)=>{const d=j-(m-1)/2;return `<i class="mc" style="transform:translateX(${d*6}px) rotate(${d*6}deg)"></i>`}).join('');
     return `<div class="seat ${p.id===S.turn?'turn':''} ${p.on?'':'off'}" id="seat-${p.id}" style="left:${x}%;top:${y}%">
-      <div class="av" style="background:hsl(${h} 55% 38%)">${p.name[0].toUpperCase()}<span class="cnt">${p.n}</span></div>
+      <div class="av" style="background:hsl(${h} 55% 38%)">${[...p.name][0].toUpperCase()}<span class="cnt">${p.n}</span></div>
       <div class="nm">${p.name}</div><div class="mini">${mini}</div></div>`}).join('');
   return opp;
 }
@@ -291,7 +324,10 @@ function game(){
   if(prevS&&prevS.state==='play'&&prevS.color!==S.color)$('ring').animate([{transform:'scale(1.35)',opacity:.4},{transform:'scale(1)',opacity:1}],{duration:450});
   $('dir').classList.toggle('ccw',S.dir===-1);
   const who=(S.players.find(p=>p.id===S.turn)||{}).name;
-  $('status').innerHTML=S.state==='over'?'':mine?`<span class="pill me">${S.drawn?"Olingan kartani tashlang yoki o'tkazing":'🔔 Sizning navbatingiz!'}</span>`:`<span class="pill">⏳ ${who} o'ylayapti...</span>`;
+  dl=S.left?Date.now()+S.left*1000:0;
+  const tm=S.left?` <b id="tleft">${S.left}</b>s`:'';
+  const msg=S.drawn?"Olingan kartani tashlang yoki o'tkazing":S.pen?`⚠️ Shunday karta tashlang yoki ${S.pen.n} ta oling`:'🔔 Sizning navbatingiz!';
+  $('status').innerHTML=S.state==='over'?'':mine?`<span class="pill me">${msg}${tm}</span>`:`<span class="pill">⏳ ${who} o'ylayapti...${tm}</span>`;
   $('deck').classList.toggle('hint',mine&&!S.drawn&&!S.hand.some(c=>c.ok));
   $('pass').classList.toggle('hide',!S.drawn);
   const over=S.state==='over';
@@ -299,7 +335,7 @@ function game(){
   $('over').classList.toggle('show',over);
 }
 function lobby(){
-  $('code').textContent=S.code;
+  $('code').textContent=S.code;cfgUI();
   const sig=S.players.map(p=>p.id+p.on).join();
   if(sig!==lobSig){lobSig=sig;$('lplayers').innerHTML=S.players.map(p=>`<div class="pl ${p.on?'':'off'}">${p.name}${p.id===S.host?' 👑':''}</div>`).join('')}
   const h=S.host===S.you;$('start').classList.toggle('hide',!h);$('start').disabled=S.players.length<2;
@@ -308,7 +344,8 @@ function lobby(){
 function resetGame(){handEls.forEach(el=>el.remove());handEls.clear();$('pile').innerHTML='';$('seats').innerHTML='';pileId=null}
 function render(){
   const st=S?S.state:'home',inGame=st==='play'||st==='over';
-  $('auth').classList.toggle('hide',st!=='home'||!!acct);
+  $('auth').classList.toggle('hide',st!=='home'||!!acct||inTG);
+  $('logout').classList.toggle('hide',inTG);
   $('home').classList.toggle('hide',st!=='home'||!acct);
   $('lobby').classList.toggle('hide',st!=='lobby');
   $('game').classList.toggle('hide',!inGame);
@@ -316,6 +353,7 @@ function render(){
   if(!inGame){resetGame();if(st==='lobby')lobby();else lobSig='';prevS=S;return}
   game();prevS=S;
 }
-if(acct){$('me').textContent=acct.name;connect()}
+setInterval(()=>{const e=$('tleft');if(e&&dl)e.textContent=Math.max(0,Math.ceil((dl-Date.now())/1000))},300);
+if(inTG)tgLogin();else if(acct){$('me').textContent=acct.name;connect()}
 render();
 </script></body></html>
