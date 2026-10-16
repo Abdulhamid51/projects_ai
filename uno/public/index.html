@@ -33,8 +33,13 @@ button:disabled{opacity:.4}button.sec{background:#455a64}button.red{background:v
 <h1>UNO</h1><div id="toast"></div>
 <div id="modal"><div class="row" id="colors"></div></div>
 
-<div id="home" class="box">
-  <input id="name" placeholder="Ismingiz" maxlength="14">
+<div id="auth" class="box">
+  <input id="user" placeholder="Foydalanuvchi nomi" maxlength="14" autocomplete="username">
+  <input id="pw" type="password" placeholder="Parol (kamida 6 belgi)" autocomplete="current-password">
+  <div class="row"><button id="login">Kirish</button><button id="reg" class="sec">Ro'yxatdan o'tish</button></div>
+</div>
+<div id="home" class="box hide">
+  <div class="row" style="justify-content:space-between;margin-bottom:6px"><span>👤 <b id="me"></b></span><button class="sec" id="logout" style="padding:6px 12px">Chiqish</button></div>
   <button id="create" style="width:100%;margin:6px 0">🎮 Yangi xona yaratish</button>
   <div class="row" style="margin-top:10px"><input id="codeIn" placeholder="Xona kodi" maxlength="4" style="flex:1;width:auto;text-transform:uppercase"><button id="join">Qo'shilish</button></div>
 </div>
@@ -64,23 +69,36 @@ button:disabled{opacity:.4}button.sec{background:#455a64}button.red{background:v
 const $=id=>document.getElementById(id), store=localStorage;
 const SYM={skip:'⊘',rev:'⇄','+2':'+2','+4':'+4',wild:'★'};
 const NAMES={red:'#e53935',yellow:'#fdd835',green:'#43a047',blue:'#1e88e5'};
-let ws,S,pend=null,sess=JSON.parse(store.uno||'null');
+let ws,S,pend=null,sess=JSON.parse(store.uno||'null'),acct=JSON.parse(store.unoAcct||'null');
 const url=new URL(location);
 if(url.searchParams.get('room'))$('codeIn').value=url.searchParams.get('room');
-$('name').value=store.unoName||'';
 
 function toast(m){const t=$('toast');t.textContent=m;t.style.display='block';clearTimeout(t._t);t._t=setTimeout(()=>t.style.display='none',2200)}
 function send(m){ws&&ws.readyState===1?ws.send(JSON.stringify(m)):toast('Ulanmagan...')}
-function connect(first){
-  ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws');
-  ws.onopen=()=>{ if(first)first(); else if(sess)send({t:'rejoin',...sess}) };
-  ws.onmessage=e=>{const m=JSON.parse(e.data);
-    if(m.t==='joined'){sess={id:m.id,code:m.code};store.uno=JSON.stringify(sess);history.replaceState(0,'','?room='+m.code)}
-    else if(m.t==='err'){toast(m.msg);if(m.fatal){delete store.uno;sess=null}}
+function connect(){
+  const w=ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws');
+  w.onopen=()=>send({t:'auth',token:acct.token});
+  w.onmessage=e=>{const m=JSON.parse(e.data);
+    if(m.t==='authed'){if(sess)send({t:'rejoin',code:sess.code})}
+    else if(m.t==='joined'){sess={code:m.code};store.uno=JSON.stringify(sess);history.replaceState(0,'','?room='+m.code)}
+    else if(m.t==='kicked'){w.onclose=null;S=null;render();toast('Boshqa oynada ochildi')}
+    else if(m.t==='err'){toast(m.msg);if(m.auth)logout();else if(m.fatal){delete store.uno;sess=null;S=null;render()}}
     else if(m.t==='state'){S=m;render()}};
-  ws.onclose=()=>{ if(sess)setTimeout(()=>connect(),1500) };
+  w.onclose=()=>{if(acct&&ws===w)setTimeout(connect,1500)};
 }
-function enter(m){ store.unoName=$('name').value; const go=()=>send({...m,name:$('name').value||'Mehmon'}); ws&&ws.readyState===1?go():connect(go) }
+const enter=m=>send(m);
+async function auth(kind){
+  const r=await fetch('/api/'+kind,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({username:$('user').value.trim(),password:$("pw").value})});
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok)return toast(d.err||'Xatolik');
+  acct=d;store.unoAcct=JSON.stringify(d);$('pw').value='';$('me').textContent=d.name;render();connect();
+}
+function logout(){
+  if(sess)send({t:'leave'});
+  acct=sess=S=null;delete store.unoAcct;delete store.uno;try{ws.close()}catch(e){}
+  history.replaceState(0,'','/');render();
+}
+$('login').onclick=()=>auth('login');$('reg').onclick=()=>auth('register');$('logout').onclick=logout;
 $('create').onclick=()=>enter({t:'create'});
 $('join').onclick=()=>enter({t:'join',code:$('codeIn').value.trim().toUpperCase()});
 $('start').onclick=()=>send({t:'start'});$('again').onclick=()=>send({t:'start'});
@@ -95,7 +113,8 @@ $('modal').onclick=e=>{if(e.target.id==='modal'){pend=null;$('modal').style.disp
 function cardEl(c,cls=''){return `<div class="card ${c.c||'wild'} ${cls}" data-id="${c.id}">${/^\d$/.test(c.v)?c.v:SYM[c.v]}</div>`}
 function render(){
   const st=S?S.state:'home';
-  $('home').classList.toggle('hide',st!=='home');
+  $('auth').classList.toggle('hide',st!=='home'||!!acct);
+  $('home').classList.toggle('hide',st!=='home'||!acct);
   $('lobby').classList.toggle('hide',st!=='lobby');
   $('game').classList.toggle('hide',st!=='play'&&st!=='over');
   if(!S)return;
@@ -120,5 +139,6 @@ function render(){
 $('hand').onclick=e=>{const el=e.target.closest('.card');if(!el||!el.classList.contains('ok'))return;
   const c=S.hand.find(x=>x.id==el.dataset.id);
   if(!c.c){pend=c.id;$('modal').style.display='flex'}else send({t:'play',card:c.id})};
-if(sess)connect(); else if(url.searchParams.get('room'))$('name').focus();
+if(acct){$('me').textContent=acct.name;connect()}
+render();
 </script></body></html>

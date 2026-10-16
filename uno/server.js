@@ -2,6 +2,42 @@ const http = require('http'), fs = require('fs'), path = require('path');
 const { WebSocketServer } = require('ws');
 
 const PORT = process.env.PORT || 3000;
+const crypto = require('crypto');
+const DATA = process.env.DATA_FILE || path.join(__dirname, 'data', 'users.json');
+let db = { secret: crypto.randomBytes(32).toString('hex'), users: {} };
+try { db = JSON.parse(fs.readFileSync(DATA)); } catch (e) {}
+const save = () => { fs.mkdirSync(path.dirname(DATA), { recursive: true }); fs.writeFileSync(DATA, JSON.stringify(db)); };
+const mac = b => crypto.createHmac('sha256', db.secret).update(b).digest('hex');
+const same = (a, b) => a.length === b.length && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
+const sign = k => { const b = k + '.' + (Date.now() + 30 * 864e5); return b + '.' + mac(b); };
+const verify = t => { const [k, e, h] = String(t).split('.'); return h && +e > Date.now() && same(h, mac(k + '.' + e)) ? k : null; };
+const hashPw = (pw, salt) => crypto.scryptSync(pw, salt, 32).toString('hex');
+const hits = new Map();
+const limited = ip => { const n = (hits.get(ip) || 0) + 1; hits.set(ip, n); return n > 20; };
+setInterval(() => hits.clear(), 60000);
+
+function api(req, res) {
+  let b = '';
+  req.on('data', d => { b += d; if (b.length > 1024) req.destroy(); });
+  req.on('end', () => {
+    const out = (c, o) => { res.writeHead(c, { 'content-type': 'application/json' }); res.end(JSON.stringify(o)); };
+    let m; try { m = JSON.parse(b); } catch (e) { return out(400, { err: "Noto'g'ri so'rov" }); }
+    const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress).split(',')[0];
+    if (limited(ip)) return out(429, { err: "Juda ko'p urinish, 1 daqiqa kuting" });
+    const name = String(m.username || '').trim(), pw = String(m.password || ''), k = name.toLowerCase();
+    if (!/^[A-Za-z0-9_]{3,14}$/.test(name)) return out(400, { err: "Nom 3-14 ta harf/raqam/_ bo'lsin" });
+    if (pw.length < 6 || pw.length > 100) return out(400, { err: "Parol kamida 6 ta belgi" });
+    if (req.url === '/api/register') {
+      if (db.users[k]) return out(409, { err: 'Bu nom band' });
+      const salt = crypto.randomBytes(16).toString('hex');
+      db.users[k] = { name, salt, hash: hashPw(pw, salt) }; save();
+      return out(200, { token: sign(k), name });
+    }
+    const u = db.users[k];
+    if (!u || !same(hashPw(pw, u.salt), u.hash)) return out(401, { err: 'Login yoki parol xato' });
+    out(200, { token: sign(k), name: u.name });
+  });
+}
 const COLORS = ['red', 'yellow', 'green', 'blue'];
 const rooms = new Map();
 let uid = 0;
@@ -85,26 +121,33 @@ const send = (ws, m) => ws && ws.readyState === 1 && ws.send(JSON.stringify(m));
 const sync = r => r.players.forEach(p => send(p.ws, view(r, p)));
 
 function genCode() { let c; do c = Array.from({ length: 4 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ'[Math.random() * 24 | 0]).join(''); while (rooms.has(c)); return c; }
-const newPlayer = (name, ws) => ({ id: 'p' + Math.random().toString(36).slice(2, 10), name: String(name || 'Mehmon').slice(0, 14), hand: [], ws });
+const newPlayer = ws => ({ id: ws.user, name: ws.uname, hand: [], ws });
 
 function handle(ws, m) {
+  if (m.t === 'auth') {
+    const k = verify(m.token), u = k && db.users[k];
+    if (!u) return send(ws, { t: 'err', msg: 'Qaytadan kiring', auth: true });
+    ws.user = k; ws.uname = u.name; return send(ws, { t: 'authed' });
+  }
+  if (!ws.user) return;
   let r = ws.room, p = ws.player;
+  if ((m.t === 'create' || m.t === 'join') && ws.room) { leave(ws, true); r = p = null; }
   if (m.t === 'create') {
-    p = newPlayer(m.name, ws);
+    p = newPlayer(ws);
     r = { code: genCode(), players: [p], host: p.id, state: 'lobby', deck: [], discard: [], turn: 0, dir: 1, log: [], seen: Date.now() };
     rooms.set(r.code, r);
   } else if (m.t === 'join' || m.t === 'rejoin') {
     r = rooms.get(String(m.code || '').toUpperCase());
     if (!r) return send(ws, { t: 'err', msg: 'Xona topilmadi', fatal: m.t === 'rejoin' });
-    if (m.t === 'rejoin') {
-      p = r.players.find(q => q.id === m.id);
-      if (!p) return send(ws, { t: 'err', msg: 'Siz bu xonada emassiz', fatal: true });
-      if (p.ws && p.ws !== ws) p.ws.close();
-      p.ws = ws;
-    } else {
+    p = r.players.find(q => q.id === ws.user);
+    if (p) {
+      const old = p.ws; p.ws = ws;
+      if (old && old !== ws) { old.room = old.player = null; send(old, { t: 'kicked' }); old.close(); }
+    } else if (m.t === 'rejoin') return send(ws, { t: 'err', msg: 'Siz bu xonada emassiz', fatal: true });
+    else {
       if (r.state !== 'lobby') return send(ws, { t: 'err', msg: "O'yin boshlangan" });
       if (r.players.length >= 8) return send(ws, { t: 'err', msg: "Xona to'la" });
-      p = newPlayer(m.name, ws); r.players.push(p);
+      p = newPlayer(ws); r.players.push(p);
     }
   } else if (!r || !p) return;
   else if (m.t === 'start') { if (r.host !== p.id || r.players.length < 2 || r.state === 'play') return; startGame(r); }
@@ -139,6 +182,7 @@ function leave(ws, hard) {
 
 const server = http.createServer((req, res) => {
   if (req.url === '/health') return res.end('ok');
+  if (req.method === 'POST' && req.url.startsWith('/api/')) return api(req, res);
   fs.readFile(path.join(__dirname, 'public', 'index.html'), (e, d) => {
     res.writeHead(e ? 500 : 200, { 'content-type': 'text/html; charset=utf-8' }); res.end(d);
   });
