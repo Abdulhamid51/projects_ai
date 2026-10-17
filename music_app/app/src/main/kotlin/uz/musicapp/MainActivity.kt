@@ -2,7 +2,6 @@ package uz.musicapp
 
 import android.Manifest
 import android.content.ComponentName
-import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -174,9 +173,6 @@ fun Root() {
         },
     ) { pad ->
         Column(Modifier.padding(pad).fillMaxSize()) {
-            Repo.status.value?.let {
-                Text(it, Modifier.fillMaxWidth().padding(12.dp), color = MaterialTheme.colorScheme.primary, maxLines = 2)
-            }
             if (openList == null) {
                 if (lists.isEmpty()) Text("Hali playlist yo'q. + tugmasini bosing.", Modifier.padding(16.dp))
                 LazyColumn {
@@ -185,7 +181,7 @@ fun Root() {
                             verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 Text(p.name, fontSize = 17.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                Text("${p.tracks.size} ta trek • " + if (p.source == "youtube") "YouTube" else "Qurilma",
+                                Text("${p.tracks.size} ta trek",
                                     fontSize = 12.sp, modifier = Modifier.alpha(0.6f))
                             }
                             TextButton({ delId = p.id }) { Text("🗑") }
@@ -196,9 +192,7 @@ fun Root() {
             } else {
                 Row(Modifier.padding(horizontal = 12.dp), Arrangement.spacedBy(8.dp)) {
                     TextButton({ ctl?.let { c -> if (openList.tracks.isNotEmpty()) playFrom(c, openList, 0) } }) { Text("▶ Hammasini ijro etish") }
-                    if (openList.source == "local") {
-                        TextButton({ pickFor = openList.id; picker.launch(arrayOf("audio/*")) }) { Text("+ Fayl qo'shish") }
-                    }
+                    TextButton({ pickFor = openList.id; picker.launch(arrayOf("audio/*")) }) { Text("+ Fayl qo'shish") }
                 }
                 LazyColumn {
                     itemsIndexed(openList.tracks) { i, t ->
@@ -220,29 +214,16 @@ fun Root() {
 
     if (showNew) {
         var name by remember { mutableStateOf("") }
-        var url by remember { mutableStateOf("") }
         AlertDialog(
             onDismissRequest = { showNew = false },
             title = { Text("Yangi playlist") },
-            text = {
-                Column {
-                    OutlinedTextField(name, { name = it }, label = { Text("Nomi") }, singleLine = true)
-                    OutlinedTextField(url, { url = it }, label = { Text("YouTube playlist linki") }, singleLine = true)
-                }
-            },
+            text = { OutlinedTextField(name, { name = it }, label = { Text("Nomi") }, singleLine = true) },
             confirmButton = {
-                Row {
-                    TextButton({
-                        pickFor = Repo.create(name.ifBlank { "Playlist" }, "local")
-                        showNew = false
-                        picker.launch(arrayOf("audio/*"))
-                    }) { Text("Fayllar") }
-                    TextButton({
-                        ContextCompat.startForegroundService(ctx, Intent(ctx, DownloadService::class.java)
-                            .putExtra("url", url.trim()).putExtra("name", name.trim()))
-                        showNew = false
-                    }, enabled = url.isNotBlank() && !Repo.busy) { Text("YouTube") }
-                }
+                TextButton({
+                    pickFor = Repo.create(name.ifBlank { "Playlist" }, "local")
+                    showNew = false
+                    picker.launch(arrayOf("audio/*"))
+                }) { Text("Fayllar tanlash") }
             },
             dismissButton = { TextButton({ showNew = false }) { Text("Bekor") } },
         )

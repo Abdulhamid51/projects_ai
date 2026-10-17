@@ -13,7 +13,6 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
-        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
     }
     signingConfigs.getByName("debug") {
         enableV1Signing = true
@@ -31,7 +30,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
-    packaging { jniLibs { useLegacyPackaging = true } }
 }
 
 dependencies {
@@ -43,6 +41,4 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:1.5.1")
     implementation("androidx.media3:media3-session:1.5.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
-    implementation("io.github.junkfood02.youtubedl-android:library:0.18.1")
-    implementation("io.github.junkfood02.youtubedl-android:ffmpeg:0.18.1")
 }

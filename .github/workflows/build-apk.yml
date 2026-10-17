@@ -15,6 +15,18 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with: { gradle-version: '8.9' }
       - run: gradle -p music_app assembleDebug assembleRelease --no-daemon --stacktrace
+      - name: Diagnose APK
+        continue-on-error: true
+        run: |
+          BT=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)
+          echo "build-tools: $BT"
+          for a in music_app/app/build/outputs/apk/*/*.apk; do
+            echo "=== $a"; ls -l "$a"
+            $BT/aapt2 dump badging "$a" | grep -E "^(package|sdkVersion|targetSdkVersion|uses-permission|application-label|native-code|launchable)" || true
+            $BT/aapt2 dump xmltree "$a" --file AndroidManifest.xml | grep -iE "debuggable|extractNativeLibs|testOnly" || true
+            $BT/apksigner verify --verbose --print-certs "$a" | head -12 || true
+            $BT/zipalign -c -P 16 -v 4 "$a" | tail -3 || true
+          done
       - uses: actions/upload-artifact@v4
         with:
           name: music-app-apk
