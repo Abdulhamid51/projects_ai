@@ -35,9 +35,17 @@ object Repo {
     val playlists = mutableStateOf<List<Playlist>>(emptyList())
     val status = mutableStateOf<String?>(null)
     val progress = mutableStateOf(0f)
+    val error = mutableStateOf<String?>(null)
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     @Volatile var busy = false
     private var ytReady = false
+    private var ytInfo = ""
+
+    private fun errText(e: Throwable): String {
+        val lines = e.message.orEmpty().lines().map { it.trim() }.filter { it.isNotBlank() }
+        val errs = lines.filter { it.startsWith("ERROR") }
+        return (errs.ifEmpty { lines.takeLast(3) }).joinToString(" ").take(400).ifBlank { e.javaClass.simpleName }
+    }
     private val file get() = File(ctx.filesDir, "playlists.json")
 
     fun init(c: Context) {
@@ -128,7 +136,17 @@ object Repo {
                 y.init(ctx)
                 FFmpeg.getInstance().init(ctx)
                 status.value = "yt-dlp yangilanmoqda..."
-                runCatching { y.updateYoutubeDL(ctx) }
+                ytInfo = ""
+                for (ch in listOf(YoutubeDL.UpdateChannel.STABLE, YoutubeDL.UpdateChannel.NIGHTLY)) {
+                    try {
+                        val st = y.updateYoutubeDL(ctx, ch)
+                        ytInfo += "${ch.javaClass.simpleName}:$st "
+                        break
+                    } catch (e: Exception) {
+                        ytInfo += "${ch.javaClass.simpleName}:xato(${errText(e).take(120)}) "
+                    }
+                }
+                ytInfo += "v=${y.versionName(ctx) ?: y.version(ctx) ?: "ichki"}"
                 ytReady = true
             }
             status.value = if (whole) "Playlist o'qilmoqda..." else "Video o'qilmoqda..."
@@ -146,7 +164,10 @@ object Repo {
             var ok = 0
             var skipped = 0
             var failed = 0
+            var consecutive = 0
+            var lastErr = ""
             items.forEachIndexed { i, o ->
+                if (consecutive >= 3) return@forEachIndexed
                 val id = o.getString("id")
                 if (id in have) {
                     skipped++
@@ -171,18 +192,19 @@ object Repo {
                         ?: error("fayl topilmadi")
                     addTracks(pid, listOf(Track(id, title, artist, Uri.fromFile(f).toString())))
                     ok++
+                    consecutive = 0
                 } catch (e: Exception) {
                     failed++
-                    status.value = "Xato (${i + 1}): ${e.message?.take(100)}"
-                    delay(2000)
+                    consecutive++
+                    lastErr = errText(e)
                 }
             }
             status.value = "Tayyor: $ok ta yuklandi" + (if (skipped > 0) ", $skipped ta allaqachon bor" else "") +
                 (if (failed > 0) ", $failed ta xato" else "")
-            delay(4000)
+            if (failed > 0) error.value = "$failed ta xato. Sabab: $lastErr\n[yt-dlp: $ytInfo]"
+            delay(3000)
         } catch (e: Exception) {
-            status.value = "Xatolik: ${e.message?.take(150)}"
-            delay(6000)
+            error.value = "Xatolik: ${errText(e)}\n[yt-dlp: $ytInfo]"
         } finally {
             status.value = null
             progress.value = 0f

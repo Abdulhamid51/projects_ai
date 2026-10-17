@@ -175,6 +175,16 @@ fun Root() {
                     )
                 }
             }
+            Repo.error.value?.let { er ->
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp).clip(RoundedCornerShape(14.dp))
+                        .background(Color(0xFF3A1F2B)).padding(start = 12.dp, top = 4.dp, bottom = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(er, Modifier.weight(1f), fontSize = 12.sp, maxLines = 12, overflow = TextOverflow.Ellipsis)
+                    IconBtn(Ic.Close, "Yopish", { Repo.error.value = null }, Color.White, 18.dp)
+                }
+            }
             Box(Modifier.weight(1f)) {
                 if (openList == null) Home(lists, { open = it }, { delId = it }) { showNew = true }
                 else Detail(openList, ps, { open = null }) { addFor = it }
