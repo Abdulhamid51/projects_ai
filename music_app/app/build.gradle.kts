@@ -14,13 +14,18 @@ android {
         versionCode = 1
         versionName = "1.0"
     }
-    signingConfigs.getByName("debug") {
-        enableV1Signing = true
-        enableV2Signing = true
+    signingConfigs {
+        create("app") {
+            storeFile = file("musiqa.jks")
+            storePassword = "musiqa123"
+            keyAlias = "musiqa"
+            keyPassword = "musiqa123"
+        }
     }
     buildTypes {
+        debug { signingConfig = signingConfigs.getByName("app") }
         release {
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("app")
             isMinifyEnabled = false
         }
     }
