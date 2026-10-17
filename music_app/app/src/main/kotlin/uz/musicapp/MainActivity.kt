@@ -2,6 +2,7 @@ package uz.musicapp
 
 import android.Manifest
 import android.content.ComponentName
+import android.content.Intent
 import android.graphics.Color as AColor
 import android.os.Build
 import android.os.Bundle
@@ -117,6 +118,7 @@ fun Root() {
     var showNew by remember { mutableStateOf(false) }
     var pickFor by remember { mutableStateOf<String?>(null) }
     var delId by remember { mutableStateOf<String?>(null) }
+    var addFor by remember { mutableStateOf<String?>(null) }
     var full by remember { mutableStateOf(false) }
     val lists = Repo.playlists.value
     val openList = lists.find { it.id == open }
@@ -164,9 +166,18 @@ fun Root() {
 
     Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF1C1844), Bg)))) {
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
+            Repo.status.value?.let { st ->
+                Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp).clip(RoundedCornerShape(14.dp)).background(Card).padding(12.dp)) {
+                    Text(st, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    LinearProgressIndicator(
+                        progress = { Repo.progress.value },
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp), color = Accent, trackColor = Color(0xFF3A3C5C),
+                    )
+                }
+            }
             Box(Modifier.weight(1f)) {
                 if (openList == null) Home(lists, { open = it }, { delId = it }) { showNew = true }
-                else Detail(openList, ps, { open = null }, pick)
+                else Detail(openList, ps, { open = null }) { addFor = it }
             }
             if (ps.cur != null) MiniPlayer(ps) { full = true }
             Spacer(Modifier.navigationBarsPadding())
@@ -183,11 +194,26 @@ fun Root() {
             text = { OutlinedTextField(name, { name = it }, label = { Text("Nomi") }, singleLine = true) },
             confirmButton = {
                 TextButton({
+                    val id = Repo.create(name.ifBlank { "Playlist" }, "local")
                     showNew = false
-                    pick(Repo.create(name.ifBlank { "Playlist" }, "local"))
-                }) { Text("Fayllar tanlash") }
+                    open = id
+                    addFor = id
+                }) { Text("Yaratish") }
             },
             dismissButton = { TextButton({ showNew = false }) { Text("Bekor") } },
+        )
+    }
+    addFor?.let { id ->
+        AddDialog(
+            onDismiss = { addFor = null },
+            onFiles = { addFor = null; pick(id) },
+            onYoutube = { url, whole ->
+                addFor = null
+                ContextCompat.startForegroundService(
+                    ctx,
+                    Intent(ctx, DownloadService::class.java).putExtra("url", url).putExtra("pid", id).putExtra("whole", whole),
+                )
+            },
         )
     }
     delId?.let { id ->
@@ -266,15 +292,21 @@ fun Detail(p: Playlist, ps: Ps, onBack: () -> Unit, onPick: (String) -> Unit) {
                         Text("${p.tracks.size} ta trek", color = Muted, modifier = Modifier.padding(top = 4.dp))
                     }
                 }
-                Row(Modifier.padding(vertical = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                val pad = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)
+                Row(Modifier.fillMaxWidth().padding(vertical = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
                         { ps.ctl?.let { c -> if (p.tracks.isNotEmpty()) playFrom(c, p, 0, false) } },
+                        Modifier.weight(1f), contentPadding = pad,
                         colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Color(0xFF1A1033)),
-                    ) { Icon(Ic.Play, null, Modifier.size(20.dp)); Text(" Ijro", fontWeight = FontWeight.SemiBold) }
+                    ) { Icon(Ic.Play, null, Modifier.size(18.dp)); Spacer(Modifier.width(4.dp)); Text("Ijro", fontSize = 13.sp, maxLines = 1, fontWeight = FontWeight.SemiBold) }
                     FilledTonalButton({
                         ps.ctl?.let { c -> if (p.tracks.isNotEmpty()) playFrom(c, p, p.tracks.indices.random(), true) }
-                    }) { Icon(Ic.Shuffle, null, Modifier.size(20.dp)); Text(" Aralash") }
-                    FilledTonalButton({ onPick(p.id) }) { Icon(Ic.Add, null, Modifier.size(20.dp)); Text(" Qo'shish") }
+                    }, Modifier.weight(1f), contentPadding = pad) {
+                        Icon(Ic.Shuffle, null, Modifier.size(18.dp)); Spacer(Modifier.width(4.dp)); Text("Aralash", fontSize = 13.sp, maxLines = 1)
+                    }
+                    FilledTonalButton({ onPick(p.id) }, Modifier.weight(1f), contentPadding = pad) {
+                        Icon(Ic.Add, null, Modifier.size(18.dp)); Spacer(Modifier.width(4.dp)); Text("Qo'shish", fontSize = 13.sp, maxLines = 1)
+                    }
                 }
                 if (p.tracks.isEmpty()) {
                     Text("Playlist bo'sh. \"Qo'shish\" orqali musiqa tanlang.", color = Muted, modifier = Modifier.padding(vertical = 24.dp))
@@ -376,4 +408,38 @@ fun NowPlaying(ps: Ps, onClose: () -> Unit) {
         }
         Spacer(Modifier.height(12.dp))
     }
+}
+
+@Composable
+fun AddDialog(onDismiss: () -> Unit, onFiles: () -> Unit, onYoutube: (String, Boolean) -> Unit) {
+    var url by remember { mutableStateOf("") }
+    val busy = Repo.status.value != null
+    val ok = url.isNotBlank() && !busy
+    val pad = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)
+    val accent = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Color(0xFF1A1033))
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Card,
+        title = { Text("Musiqa qo'shish") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                FilledTonalButton(onFiles, Modifier.fillMaxWidth()) {
+                    Icon(Ic.Add, null, Modifier.size(18.dp)); Text("  Telefondan fayllar tanlash")
+                }
+                Text("YouTube'dan yuklash", color = Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
+                OutlinedTextField(url, { url = it }, Modifier.fillMaxWidth(), label = { Text("Video yoki playlist linki") }, singleLine = true)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button({ onYoutube(url.trim(), false) }, Modifier.weight(1f), enabled = ok, contentPadding = pad, colors = accent) {
+                        Text("Bitta video", fontSize = 13.sp, maxLines = 1)
+                    }
+                    Button({ onYoutube(url.trim(), true) }, Modifier.weight(1f), enabled = ok, contentPadding = pad, colors = accent) {
+                        Text("Butun playlist", fontSize = 13.sp, maxLines = 1)
+                    }
+                }
+                if (busy) Text("Hozir boshqa yuklash davom etmoqda", color = Muted, fontSize = 12.sp)
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onDismiss) { Text("Yopish") } },
+    )
 }

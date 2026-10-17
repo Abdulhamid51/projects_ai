@@ -7,9 +7,13 @@ import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.compose.runtime.mutableStateOf
+import com.yausername.ffmpeg.FFmpeg
+import com.yausername.youtubedl_android.YoutubeDL
+import com.yausername.youtubedl_android.YoutubeDLRequest
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
@@ -29,7 +33,11 @@ class App : Application() {
 object Repo {
     private lateinit var ctx: Context
     val playlists = mutableStateOf<List<Playlist>>(emptyList())
+    val status = mutableStateOf<String?>(null)
+    val progress = mutableStateOf(0f)
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    @Volatile var busy = false
+    private var ytReady = false
     private val file get() = File(ctx.filesDir, "playlists.json")
 
     fun init(c: Context) {
@@ -108,5 +116,77 @@ object Repo {
                 md.second.orEmpty(), u.toString())
         }
         addTracks(pid, new)
+    }
+
+    suspend fun importYoutube(pid: String, url: String, whole: Boolean) {
+        busy = true
+        progress.value = 0f
+        try {
+            status.value = "Tayyorlanmoqda..."
+            val y = YoutubeDL.getInstance()
+            if (!ytReady) {
+                y.init(ctx)
+                FFmpeg.getInstance().init(ctx)
+                status.value = "yt-dlp yangilanmoqda..."
+                runCatching { y.updateYoutubeDL(ctx) }
+                ytReady = true
+            }
+            status.value = if (whole) "Playlist o'qilmoqda..." else "Video o'qilmoqda..."
+            val listing = YoutubeDLRequest(url).apply {
+                addOption("--flat-playlist")
+                addOption("--dump-json")
+                addOption("--ignore-errors")
+                addOption(if (whole) "--yes-playlist" else "--no-playlist")
+            }
+            val items = y.execute(listing).out.lines().mapNotNull { runCatching { JSONObject(it) }.getOrNull() }
+                .filter { it.optString("id").isNotBlank() }
+            if (items.isEmpty()) error("Videolar topilmadi")
+            val dir = File(ctx.getExternalFilesDir(null) ?: ctx.filesDir, "yt/$pid").apply { mkdirs() }
+            val have = playlists.value.find { it.id == pid }?.tracks?.map { it.id }.orEmpty().toSet()
+            var ok = 0
+            var skipped = 0
+            var failed = 0
+            items.forEachIndexed { i, o ->
+                val id = o.getString("id")
+                if (id in have) {
+                    skipped++
+                    return@forEachIndexed
+                }
+                val title = o.optString("title", id)
+                val artist = o.optString("uploader", o.optString("channel")).takeIf { it != "null" }.orEmpty()
+                val req = YoutubeDLRequest("https://www.youtube.com/watch?v=$id").apply {
+                    addOption("-f", "bestaudio[ext=m4a]/bestaudio/best")
+                    addOption("-x")
+                    addOption("--audio-format", "m4a")
+                    addOption("--no-playlist")
+                    addOption("--no-mtime")
+                    addOption("-o", "${dir.absolutePath}/%(id)s.%(ext)s")
+                }
+                try {
+                    y.execute(req) { p, _, _ ->
+                        status.value = "${i + 1}/${items.size}: $title (${p.toInt()}%)"
+                        progress.value = ((i + p / 100f) / items.size).coerceIn(0f, 1f)
+                    }
+                    val f = dir.listFiles()?.firstOrNull { it.name.startsWith("$id.") && !it.name.endsWith(".part") }
+                        ?: error("fayl topilmadi")
+                    addTracks(pid, listOf(Track(id, title, artist, Uri.fromFile(f).toString())))
+                    ok++
+                } catch (e: Exception) {
+                    failed++
+                    status.value = "Xato (${i + 1}): ${e.message?.take(100)}"
+                    delay(2000)
+                }
+            }
+            status.value = "Tayyor: $ok ta yuklandi" + (if (skipped > 0) ", $skipped ta allaqachon bor" else "") +
+                (if (failed > 0) ", $failed ta xato" else "")
+            delay(4000)
+        } catch (e: Exception) {
+            status.value = "Xatolik: ${e.message?.take(150)}"
+            delay(6000)
+        } finally {
+            status.value = null
+            progress.value = 0f
+            busy = false
+        }
     }
 }
